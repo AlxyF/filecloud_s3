@@ -1,0 +1,12 @@
+curl -X 'POST' \
+  'http://172.24.128.181:5000/upload' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: multipart/form-data' \
+  -F 'ExternalID[acdb]=' \
+  -F 'SourceSystem=WEB' \
+  -F 'ExternalID[source]=33' \
+  -F 'DocumentType=MainPassport' \
+  -F 'ExternalID[ocdb]=11' \
+  -F 'ExternalID[ucdb]=22' \
+  -F 'File=@/mnt/c/Users/ALEX/decision_tree.ipynb' \
+  -F 'Description=ALLLOU'

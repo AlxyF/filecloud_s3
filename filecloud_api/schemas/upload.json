@@ -1,0 +1,47 @@
+{
+    "type": "object",
+    "required": [
+      "SourceSystem",
+      "Description",
+      "DocumentType"
+    ],
+    "properties": {
+      "SourceSystem": {
+        "type": "string",
+        "enum": [
+          "ESB",
+          "BPM",
+          "WEB",
+          "CRM",
+          "ABS",
+          "CC"
+        ],
+        "description": "System by which upload is initiated"
+      },
+      "Description": {
+        "type": "string",
+        "description": "File description from source system"
+      },
+      "FileEncoding": {
+        "type": "string",
+        "enum": [
+          "base64",
+          "binary"
+        ],
+        "description": "File encoding"
+      },
+      "DocumentType": {
+        "type": "string",
+        "enum": [
+          "SelfiePassport",
+          "MainPassport",
+          "Dogovor"
+        ]
+      },
+      "File": {
+        "type": "string",
+        "format": "binary",
+        "description": "File binary"
+      }
+    }
+  }
