@@ -1,26 +1,22 @@
-from flask import Flask, Blueprint, app, request, current_app, jsonify
-from datetime import datetime
-from flask.globals import request
-import os
-# later remove as naming is done by ID preparation
-from werkzeug.utils import secure_filename
-from werkzeug.datastructures import  FileStorage
-
+#importing side libraries
+from flask import Flask, request
+from jsonschema import validate
+from werkzeug.utils import secure_filename # later remove as naming is done by ID preparation
+from werkzeug.datastructures import FileStorage 
 from flasgger import Swagger
+#importing default python libraries
+from datetime import datetime
+import os
+#importing project modules
+from config import configuration
+from filecloud_api.schemas import schemas
+from filecloud_api.models import upload_model
 
-from jsonschema import validate 
-#from schema import Schema, And, Use, Optional, SchemaError
-
-
-from filecloud_api.schemas import schemas 
-
-#upload_schema = schemas.upload.json
 
 upload_schema = schemas.get_scheme('upload')
 download_schema = schemas.get_scheme('download')
 
 
-filecloud_app = None
 PORT = 5000
 HOST = '0.0.0.0'
 #os.chmod('/var/', 0o777)
@@ -42,11 +38,9 @@ filecloud_app.config['UPLOAD_EXTENSIONS'] = ['.jpg', '.png', '.gif']
 #app.register_blueprint(upload.filecloud_api_upload, url_prefix='/fileCloud')
 
 
-
 @filecloud_app.route('/', methods=['POST', 'GET'])
 def index():
     return 'HomePage'
-
 
 @filecloud_app.route('/upload', methods=['POST'])
 def upload_file():
@@ -61,6 +55,7 @@ def upload_file():
     return 'Hi'
 
 
+
 #@filecloud_app.route('/upload', methods=['GET'])
 def download_file():
     return request.data
@@ -70,11 +65,7 @@ def download_file():
 
 
 if __name__ == '__main__':
-    #from argparse import ArgumentParser
-    #parser = ArgumentParser()
-    #parser.add_argument('-p', '--port', default=5000, type=int, help='port to listen on')
-    #args = parser.parse_args()
-    #port = args.port
+    filecloud_s3_hot
 
     filecloud_app.run(debug=True, host=HOST, port=PORT, threaded=True)
 
