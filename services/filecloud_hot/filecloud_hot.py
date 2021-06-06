@@ -17,36 +17,29 @@ upload_schema = schemas.get_scheme('upload')
 download_schema = schemas.get_scheme('download')
 
 
-PORT = 5000
-HOST = '0.0.0.0'
-#os.chmod('/var/', 0o777)
-#if not os.path.exists('/var/TEST'):
-#    os.makedirs('/var/TEST')
-#uploads_dir = '/TEST/'
-uploads_dir = '/mnt/c/Users/ALEX/TEST'
 
+app = Flask(__name__)
 
-filecloud_app = Flask(__name__)
-
-swagger = Swagger(filecloud_app)
+swagger = Swagger(app)
 #filecloud_app.config['UPLOAD_FOLDER'] = '/mnt/c/Users/ALEX/var'
-filecloud_app.config['MAX_CONTENT_PATH'] = 255
-filecloud_app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024
-filecloud_app.config['UPLOAD_EXTENSIONS'] = ['.jpg', '.png', '.gif']
+app.config['MAX_CONTENT_PATH'] = 255
+app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024
+app.config['UPLOAD_EXTENSIONS'] = ['.jpg', '.png', '.gif']
 #app config
 #swagger
 #app.register_blueprint(upload.filecloud_api_upload, url_prefix='/fileCloud')
 
 
-@filecloud_app.route('/', methods=['POST', 'GET'])
+@app.route('/', methods=['POST', 'GET'])
 def index():
     return 'HomePage'
 
-@filecloud_app.route('/upload', methods=['POST'])
+
+@app.route('/upload', methods=['POST'])
 def upload_file():
     uploaded_file = request.files['File']
     if uploaded_file.filename != '':
-        uploaded_file.save(os.path.join(uploads_dir, secure_filename(uploaded_file.filename)))
+        uploaded_file.save(os.path.join(volume_path, secure_filename(uploaded_file.filename)))
     #validate(instance=)
     #print(request.json)
     #print(request.headers)
@@ -55,19 +48,15 @@ def upload_file():
     return 'Hi'
 
 
-
-#@filecloud_app.route('/upload', methods=['GET'])
+@app.route('/download', methods=['GET'])
 def download_file():
     return request.data
 
 
-
-
-
 if __name__ == '__main__':
-    filecloud_s3_hot
-
-    filecloud_app.run(debug=True, host=HOST, port=PORT, threaded=True)
+    app_config = configuration()
+    volume_path = app_config.volume_path
+    app.run(debug=True, host=app_config.host, port=app_config.port, threaded=True)
 
 
 
