@@ -4,12 +4,19 @@ services:
     filecloud_hot:
         build: ./services/filecloud_hot
         command: python filecloud_hot.py run -h 0.0.0.0
+
         volumes:
-            - /mnt/c/Users/ALEX/TEST/:/TEST:rw
+            - type: volume
+              source: my_vol
+              target: /TEST
+
+
+        #volumes:
+        #    - /mnt/c/Users/ALEX/TEST/:/TEST:rw
         ports:
             - 5000:5000
         env_file:
             - ./.env.dev
 
-#volumes: 
-#    my_vol:
+volumes: 
+    my_vol:

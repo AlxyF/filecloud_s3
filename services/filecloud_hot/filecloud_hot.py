@@ -1,33 +1,37 @@
-#importing side libraries
-from flask import Flask, request
-from jsonschema import validate
-from werkzeug.utils import secure_filename # later remove as naming is done by ID preparation
-from werkzeug.datastructures import FileStorage 
+# importing side libraries
+from flask import Flask, Response, request
 from flasgger import Swagger
-#importing default python libraries
+from werkzeug.datastructures import FileStorage 
+# importing default python libraries
 from datetime import datetime
-import os
-#importing project modules
+import os, time
+# importing project modules
 from config import configuration
 from filecloud_api.schemas import schemas
 from filecloud_api.models import upload_model
 
 
-upload_schema = schemas.get_scheme('upload')
-download_schema = schemas.get_scheme('download')
-
-
-
+'''Flask app'''
 app = Flask(__name__)
-
-swagger = Swagger(app)
-#filecloud_app.config['UPLOAD_FOLDER'] = '/mnt/c/Users/ALEX/var'
+app.config['SWAGGER'] = {
+    'title': 'FileCloudService_s3',
+    'openapi': '3.0.3'
+}
 app.config['MAX_CONTENT_PATH'] = 255
 app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024
-app.config['UPLOAD_EXTENSIONS'] = ['.jpg', '.png', '.gif']
-#app config
-#swagger
-#app.register_blueprint(upload.filecloud_api_upload, url_prefix='/fileCloud')
+
+
+''' Schemas preparation'''
+openapi_specification = schemas.fetch_openapi_yaml()
+upload_schema = schemas.get_scheme(json_api=openapi_specification, schema_name='Upload')
+upload_validator = schemas.get_schema_validator(upload_schema)
+
+#download_schema = schemas.get_scheme('Download')
+
+
+swagger = Swagger(app, template=openapi_specification)
+#filecloud_app.config['UPLOAD_FOLDER'] = '/mnt/c/Users/ALEX/var'
+
 
 
 @app.route('/', methods=['POST', 'GET'])
@@ -37,15 +41,52 @@ def index():
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
-    uploaded_file = request.files['File']
-    if uploaded_file.filename != '':
-        uploaded_file.save(os.path.join(volume_path, secure_filename(uploaded_file.filename)))
+    start = time.time()
+    # validate schema 
+    validate = schemas.validate_scheme(request.form.to_dict(), upload_validator)
+    if validate != True:
+        err = {'Error':''.join([str(i) for i in validate])}
+        return Response(f"{err}", status=400, mimetype='application/json')
+    # check if 'File' is present
+    try:
+        uploaded_file = request.files['File']
+    except:
+        err = {'Error':'Where is no file named File(Uppercase) in request'}
+        return Response(f"{err}", status=400, mimetype='application/json')
+
+    
+    
+    # check file for base64
+
+    # check decoded version of file for formats
+
+    # file id generation
+    file_id = 999
+
+
+    # all is great valid response
+    valid_response = {'FileID':file_id}
+
+    # logging file in database
+
+    # logging filecloud_logs
+    end = time.time()
+    print('Time elapsed', end-start)
+    return Response(f"{valid_response}", status=200, mimetype='application/json')
+    #if uploaded_file.filename != '':
+    #    uploaded_file.save(os.path.join(volume_path, secure_filename(uploaded_file.filename)))
+    
+    
     #validate(instance=)
-    #print(request.json)
     #print(request.headers)
-    print(validate(instance=request.form.to_dict(), schema=upload_schema))
+    #ry:
+    #    validator.is_valid(request.form.to_dict())
+    #    #jsonschema.validate(instance=request.form.to_dict(), schema=upload_schema)
+    #except jsonschema.exceptions.ValidationError as e:
+    #    print(e)
+
     #print(request.form.to_dict())
-    return 'Hi'
+    
 
 
 @app.route('/download', methods=['GET'])
@@ -61,6 +102,7 @@ if __name__ == '__main__':
 
 
         
+
 
 
 

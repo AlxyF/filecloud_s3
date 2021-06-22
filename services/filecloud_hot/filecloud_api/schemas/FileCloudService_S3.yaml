@@ -1,0 +1,457 @@
+# specification will be avalible on /fileCloud/apidocs
+openapi: 3.0.3
+
+info:
+  title: FileCloudService_s3
+  description: 'This API is designed to work with local(hot) and cloud(cold) file storage' 
+  contact:
+    name: 'API Support'
+    email: architects@migcredit.ru
+  version: 0.0.5
+  # DocumentType and file meta data may be later changed/refined
+  
+externalDocs:
+  url: https://confluence.migcredit.ru/pages/viewpage.action?pageId=99614970
+  description: 'FileCloud service architecture'
+  
+servers:
+- url: https://0.0.0.0/
+  description: 'Development server'
+  variables:
+    username:
+      default: 'Test'
+    port:
+      default: '5000'
+- url: https://0.0.0.0/
+  description: 'Production server'
+  variables:
+    username:
+      default: 'Production'
+    port:
+      default: '443'
+      
+tags:
+- name: 'singleFile'
+  description: 'Operation with single file'
+- name: 'multipleFiles'
+  description: 'Operation with multiple files'
+  
+security:
+  - bearerAuth: []
+      
+paths:
+  /fileCloud/upload:
+    post:
+      tags:
+        - 'singleFile'
+      summary: 'Upload file'
+      operationId: 'uploadFile'
+      description: 'Upload single file upload with aux file information'
+      requestBody:
+        description: 'File in multipart/form-data'
+        content:
+          multipart/form-data:
+            schema:
+                $ref: '#/components/schemas/Upload'
+
+      responses:
+        '200':
+          $ref: '#/components/responses/FileUploaded'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/BadFile'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /fileCloud/download:
+    post:
+      tags:
+        - 'singleFile'
+      summary: 'Download file'
+      operationId: 'downloadFile'
+      description: 'Download single file based on aux file information'
+      requestBody:
+        description: 'File'
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Download'
+      responses:
+        '200':
+          $ref: '#/components/responses/FileFound'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/FileNotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /fileCloud/getFileList:
+    post:
+      tags:
+        - 'multipleFiles'
+      summary: 'Get list of files'
+      operationId: 'getFileList'
+      description: 'Get list of files with meta data associated with provided IDs'
+      requestBody:
+        description: 'File list'
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GetFileList'
+      responses:
+        '200':
+          $ref: '#/components/responses/GetAssociatedList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/FileNotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /fileCloud/delete:
+    post:
+      tags:
+        - 'singleFile'
+      summary: 'Delete file from fileCloud'
+      operationId: 'deleteFile'
+      description: 'Mark for deletion from cloud(cold) file storage'
+      requestBody:
+        description: 'File id marked for deletion'
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Delete'
+      responses:
+        '200':
+          $ref: '#/components/responses/FileMarkedForDeletion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/FileNotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      description: 'Bearer token for authentication'
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    FileMarkedForDeletion:
+      description: 'File marked for deletion'
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              FileID:
+                type: integer
+                description: 'File ID'
+    GetAssociatedList:
+      description: 'File succesfully uploaded'
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              FileList:
+                type: array
+                items:
+                  type: object
+                  properties:
+                  # file metadata, mapped from fileCloud_meta_db
+                    DocumentType:
+                      $ref: '#/components/schemas/DocumentType'
+                    Description:
+                      type: string
+                      description: ''
+                    SourceSystem:
+                      type: string
+                      description: ''
+                    Size:
+                      type: integer
+                      description: 'Size in bytes'
+                    FileType:
+                      $ref: '#/components/schemas/FileType'
+                    TimeStamp:
+                      $ref: '#/components/schemas/TimeStamp'
+                    ACL:
+                      $ref: '#/components/schemas/ACL'
+                    InLocalCache:
+                      type: boolean
+                      description: '1 - in local cache, 0 - in s3 cloud'
+    UnauthorizedError:
+      description: 'Access token is missing or invalid'
+      content:
+        text/plain:
+          schema:
+            type: string
+            description: 'Unauthorized error message'   
+    FileUploaded:
+      description: 'File succesfully uploaded'
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              FileID:
+                type: integer
+                description: 'File ID'
+    FileFound:
+      description: 'File is found'
+      content:
+        application/octet-stream:
+          schema:
+            type: string
+            format: binary
+    FileNotFound:
+      description: 'File is not found by fileCloud'
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              FileID:
+                type: integer
+                description: 'File ID is not found'
+    BadRequest:
+      description: 'There must be at least one ID associated with the file'
+      content:
+        text/plain:
+          schema:
+            type: string
+            description: 'Bad request error message'   
+    InternalServerError:
+      description: 'Internal error feedback'
+      content:
+        text/plain:
+          schema:
+            type: string
+            description: 'Internal error message'  
+    ServiceUnavailable:
+      description: 'Service Unavailable'
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              ServiceName:
+                type: string
+                description: 'Name of service that is currently unavalible to fileCloud'
+              Error:
+                type: string
+                description: 'Error message'
+    BadFile:
+      description: 'Checksum, size etc is not compatible with fileCloud'
+      content:
+        text/plain:
+          schema:
+            type: string
+            description: 'Bad file error message'  
+  schemas:
+    Upload:
+      type: object
+      required:
+        - MessageID
+        - MessageDate
+        - SourceSystem
+        - Description
+        - DocumentType
+        - File
+      properties:
+        MessageID:
+          $ref: '#/components/schemas/MessageID'
+        MessageDate:
+          $ref: '#/components/schemas/MessageDate'
+        SourceSystem:
+          $ref: '#/components/schemas/SourceSystem'
+        Description:
+          type: string
+          description: 'File description from source system'
+        DocumentType:
+          $ref: '#/components/schemas/DocumentType'
+        File:
+          type: string
+          format: binary
+          description: 'File binary'
+        # must be at least one of these IDs to get 200 OK
+        UCDB_ID:
+          $ref: '#/components/schemas/IntegerID'
+        OCDB_ID:
+          $ref: '#/components/schemas/IntegerID'
+        SourceID:
+          $ref: '#/components/schemas/SourceID'
+        ContractNumber:
+          $ref: '#/components/schemas/IntegerID'
+    Download:
+      type: object
+      required:
+        - MessageID
+        - MessageDate
+        - FileID
+        - Encoding
+      properties:
+        MessageID:
+          $ref: '#/components/schemas/MessageID'
+        MessageDate:
+          $ref: '#/components/schemas/MessageDate'
+        FileID:
+          $ref: '#/components/schemas/FileID'
+        Encoding:
+          $ref: '#/components/schemas/Encoding'
+    GetFileList:
+      type: object
+      properties:
+        MessageID:
+          $ref: '#/components/schemas/MessageID'
+        MessageDate:
+          $ref: '#/components/schemas/MessageDate'
+          # must be at least one of these IDs to get 200 OK
+        UCDB_ID:
+          $ref: '#/components/schemas/IntegerID'
+        OCDB_ID:
+          $ref: '#/components/schemas/IntegerID'
+        SourceID:
+          $ref: '#/components/schemas/SourceID'
+        ContractNumber:
+          $ref: '#/components/schemas/IntegerID'
+    Delete:
+      type: object
+      required:
+        - MessageID
+        - MessageDate
+        - FileID
+      properties:
+        MessageID:
+          $ref: '#/components/schemas/MessageID'
+        MessageDate:
+          $ref: '#/components/schemas/MessageDate'
+        FileID:
+          $ref: '#/components/schemas/FileID'
+          
+    MessageID: 
+      type: string
+      description: 'Source system request ID for logging purpose'
+    MessageDate:
+      type: string
+      description: 'Source system request timestamp for logging purpose'
+    TimeStamp:
+      type: string
+      # timestamp format will be in description in future version
+      description: 'TimeStamp format'
+    SourceID:
+      type: string
+      description: 'Source system id associated with the file'
+    IntegerID:
+      type: integer
+      description: 'Integer ID'
+    FileID:
+      type: string
+      description: 'File ID'
+    Encoding:
+      type: string
+      enum: ['base64', 'binary']
+    SourceSystem:
+      type: string
+      enum: ['ESB',
+             'BPM',
+             'PAD',
+             'WEB',
+             'FIS',
+             'ABS',
+             'AGENTS']
+      description: 'System by which upload is initiated'
+    FileType:
+      type: string
+      description: 'File type by fileCloud'
+    ACL:
+      type: object
+      properties:
+              Download:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SourceSystem'
+              Upload:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SourceSystem'
+              Delete:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SourceSystem'
+      description: 'File ACL'
+    DocumentType:
+      type: string
+      description: 'https://confluence.migcredit.ru/pages/viewpage.action?pageId=42078422'
+      enum: ['CessionReject',
+             'IndoconsNotificationCDP',
+             'IndoconsNotificationDP',
+             'InsuranceUralsibNS',
+             'InsuranceAbsolutNS',
+             'InsuranceAbsolutNSPR',
+             'InsuranceRGSNS',
+             'InsurancePariNSIM',
+             'Agreement',
+             'AgreementEDS',
+             'ActPTS',
+             'IndoconsNotification',
+             'Anketa',
+             'AnketaEDS',
+             'ActCreditDoctor',
+             'ConsultEffectBudget',
+             'Statement',
+             'StatementEDS',
+             'PaymentSchedule',
+             'Indocons',
+             'IndoconsEDS',
+             'Memo',
+             'Passport',
+             'PassportMain',
+             'PassportRegistration',
+             'Photo',
+             'SelfiesPassport',
+             'Signature',
+             'Identification',
+             'Passport',
+             'Staement',
+             'Response',
+             'Claim',
+             'MEMO',
+             'PhotoBusiness',
+             'DocumentIP',
+             'Statement',
+             'Openbank',
+             'Other',
+             'Reference',
+             'Registry',
+             'Status',
+             'StatementScan',
+             'StatementTemplate',
+             'EarlyPaymentStatEDS',
+             'EarlyPaymentStat',
+             'LimitDecreaseNotification',
+             'AgreementIncreaseLimit',
+             'AgreementIncreaseLimitEDS',
+             'ServiceSertificateLawyer',
+             'ServiceSertificateTeledoctor24',
+             'ServiceSertificateTax',
+             'ServiceSertificateTeledoctor',
+             'ServiceSertificateMaster',
+             'ServiceSertificateAntivirus',
+             'RefinanceContract']
