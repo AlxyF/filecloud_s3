@@ -61,7 +61,7 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
-        '404':
+        '415':
           $ref: '#/components/responses/BadFile'
         '500':
           $ref: '#/components/responses/InternalServerError'
@@ -317,6 +317,9 @@ components:
           $ref: '#/components/schemas/Encoding'
     GetFileList:
       type: object
+      required:
+        - MessageID
+        - MessageDate
       properties:
         MessageID:
           $ref: '#/components/schemas/MessageID'

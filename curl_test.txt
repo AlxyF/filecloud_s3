@@ -1,5 +1,4 @@
-curl -X 'POST' http://172.18.83.202:5000/upload   -H 'accept: application/json'   -H 'Content-Type: multipart/form-data'   -F 'MessageID= 111'   -F 'MessageDate= 222'   -F 'SourceSystem=WEB'   -F 'DocumentType=PassportMain'   -F '"UCDB_ID"=11'  -F 'File=@/mnt/c/Users/ALEX/decision_tree.ipynb' -F 'Description=ALLLOU'
-
+curl -X 'POST' http://172.18.83.202:5000/upload   -H 'accept: application/json'   -H 'Content-Type: multipart/form-data'   -F 'MessageID= 111'   -F 'MessageDate= 222'  -F 'OCDB_ID=89' -F 'SourceSystem=WEB'   -F 'DocumentType=PassportMain'    -F 'File=@/mnt/c/Users/ALEX/Pictures/test/test_pic.jpg' -F 'Description=ALLLOU'
 
   MessageID
         - MessageDate

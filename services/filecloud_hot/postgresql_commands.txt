@@ -1,0 +1,7 @@
+1. create tablespace
+sudo mkdir -p /var/postgresql/data
+CREATE TABLESPACE filecloud_s3_space LOCATION '/var/postgresql/data';
+
+2. create database
+# in prod version consider on creation: lc_collate, lc_ctype, connlimit
+CREATE DATABASE filecloud_s3 OWNER 'postgres' ENCODING 'UTF8' ;
