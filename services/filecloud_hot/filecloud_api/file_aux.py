@@ -17,7 +17,7 @@ def get_binary_file_info(_bytes) -> (str, str):
     info = magic.from_buffer(_bytes)
     info_list = info.split(',')
     file_main_info = info_list[0]
-    file_aux_info = info_list [1:]
+    file_aux_info = ''.join([str(item) + ',' for item in info_list[1:]]).strip(',').strip(' ')
     return file_main_info, file_aux_info
 
 def get_mime_type(_bytes) -> str:

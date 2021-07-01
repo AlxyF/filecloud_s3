@@ -1,33 +1,4 @@
-curl -X 'POST' http://172.18.83.202:5000/upload   -H 'accept: application/json'   -H 'Content-Type: multipart/form-data'   -F 'MessageID= 111'   -F 'MessageDate= 222'  -F 'OCDB_ID=89' -F 'SourceSystem=WEB'   -F 'DocumentType=PassportMain'    -F 'File=@/mnt/c/Users/ALEX/Pictures/test/test_pic.jpg' -F 'Description=ALLLOU'
 
-  MessageID
-        - MessageDate
-        - SourceSystem
-        - Description
-        - DocumentType
-        - File
-      properties:
-        MessageID:
-          $ref: '#/components/schemas/MessageID'
-        MessageDate:
-          $ref: '#/components/schemas/MessageDate'
-        SourceSystem:
-          $ref: '#/components/schemas/SourceSystem'
-        Description:
-          type: string
-          description: 'File description from source system'
-        DocumentType:
-          $ref: '#/components/schemas/DocumentType'
-        File:
-          type: string
-          format: binary
-          description: 'File binary'
-
-        UCDB_ID:
-          $ref: '#/components/schemas/IntegerID'
-        OCDB_ID:
-          $ref: '#/components/schemas/IntegerID'
-        SourceID:
-          $ref: '#/components/schemas/SourceID'
-        ContractNumber:
-          $ref: '#/components/schemas/IntegerID'
+curl -X 'POST' http://172.18.83.202:5000/upload   -H 'accept: application/json'   -H 'Content-Type: multipart/form-data'   -F 'MessageID= 111'   -F 'MessageDate= 222' -F 'ContractNumber=777' -F 'SourceID=666' -F 'UCDB_ID=123456789' -F 'OCDB_ID=89' -F 'SourceSystem=WEB'   -F 'DocumentType=PassportMain'    -F 'File=@/mnt/c/Users/ALEX/Pictures/test/test_pic.jpg' -F 'Description=ALLLOU'
+curl -X 'POST' http://172.18.83.202:5000/download   -H 'accept: application/octet-stream'   -H 'Content-Type: application/json' --data '{"MessageID":"1212", "MessageDate":"222222221122", "Encoding":"binary", "FileID":"14"}'
+ 

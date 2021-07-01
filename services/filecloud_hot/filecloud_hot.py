@@ -4,15 +4,13 @@ from flasgger import Swagger
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
 # importing default python libraries
-from datetime import datetime
-import os, sys, time, csv
+import os, sys, time, csv, json, datetime
 # importing project modules
 from config import configuration_class
 from filecloud_api.schemas import schemas
 from filecloud_api.models import models
 from filecloud_api import file_aux
 from filecloud_api import database
-
 
 '''Flask app'''
 _status = 'Initializing application'
@@ -21,18 +19,18 @@ app.config['SWAGGER'] = {
     'title': 'FileCloudService_s3',
     'openapi': '3.0.3'
 }
-# hardcode flas restrictions
+# hardcode flask restrictions
 app.config['MAX_CONTENT_PATH'] = 255
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024 # 50 Mb
 
-
 '''Schemas preparation'''
 openapi_specification = schemas.fetch_openapi_yaml()
+
 upload_schema = schemas.get_scheme(json_api=openapi_specification, schema_name='Upload')
 upload_validator = schemas.get_schema_validator(upload_schema)
 
-#download_schema = schemas.get_scheme('Download')
-
+download_schema = schemas.get_scheme(json_api=openapi_specification, schema_name='Download')
+download_validator = schemas.get_schema_validator(download_schema)
 
 swagger = Swagger(app, template=openapi_specification)
 #filecloud_app.config['UPLOAD_FOLDER'] = '/mnt/c/Users/ALEX/var'
@@ -56,12 +54,16 @@ def index():
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
-    global _status
+    global _status, psql_connector
+    
+    # server time of upload
+    timestamp_upload = datetime.datetime.now()
+
     # measure upload time
     start = time.time()
-    
+
     # check if request schema is valid
-    _status = 'scheme_validation'
+    _status = 'upload_scheme_validation'
     try:
         request_dict = request.form.to_dict()
         validate = schemas.validate_scheme(request_dict, upload_validator)
@@ -110,8 +112,8 @@ def upload_file():
         return response_json(e, status=500)
 
     # check file for base64 decode to binary if needed
+    _status = 'base64_check'
     try:
-        _status = 'base64_check'
         if file_aux.is_base64(uploaded_file_bytes):
             uploaded_file = file_aux.decode_base64(uploaded_file_bytes)
             uploaded_file_encoding_on_upload = 'base64'
@@ -123,8 +125,8 @@ def upload_file():
         return response_json(e, status=500)
  
     # check file for mime types
+    _status = 'mime_check'
     try:
-        _status = 'mime_check'
         file_mime_type = file_aux.get_mime_type(uploaded_file)
         if file_mime_type not in allowed_mime_types:
             err = {'Error':f'{file_mime_type} file type is not allowed'}
@@ -133,59 +135,120 @@ def upload_file():
         return response_json(e, status=500)
 
     # check file size
+    _status = 'size_check'
     try:
-        _status = 'size_check'
-        if len(uploaded_file) > allowed_file_max_size_bytes:
+        file_size_bytes = len(uploaded_file)
+        if file_size_bytes > allowed_file_max_size_bytes:
             err = {'Error': 
             (f'Files with size larger than {allowed_file_max_size_bytes} bytes is not allowed, '
-            f'uploaded file size is {len(uploaded_file)} bytes')}
+            f'uploaded file size is {file_size_bytes} bytes')}
             return response_json(err, status=413)
     except Exception as e:
         return response_json(e, status=500)
   
-    # file id and model generation
-    upload = models.UploadModel(required=request.form, File=uploaded_file, UploadedFileName=uploaded_file_name,
-    UploadedIDs=uploaded_IDs)
+    # file upload model generation
+    _status = 'upload_model'
+    try:
+        upload = models.UploadModel(required=request.form, File=uploaded_file, UploadedFileName=uploaded_file_name,
+        UploadedIDs=uploaded_IDs)
 
-    upload.FileMimeType = file_mime_type
-    upload.FileTypeInfo, upload.FileTypeAuxInfo = file_aux.get_binary_file_info(uploaded_file)
-    upload.FileEncodingOnUpload = uploaded_file_encoding_on_upload
-    upload.FileEncodingCurrent = uploaded_file_encoding_current
-
-    upload.set_file_id()
-
-    print(upload.FileID)
+        upload.SizeBytes = file_size_bytes
+        upload.FileMimeType = file_mime_type
+        upload.FileTypeInfo, upload.FileTypeAuxInfo = file_aux.get_binary_file_info(uploaded_file)
+        upload.FileEncodingOnUpload = uploaded_file_encoding_on_upload
+        upload.FileEncodingCurrent = uploaded_file_encoding_current
+        upload.FileName = uploaded_file_name
+        upload.FileExtension = uploaded_file_extension
+        
+        upload.UploadedDate = timestamp_upload
+        upload.LastAcquiredDate = timestamp_upload
     
-    # save file 
-    with open(os.path.join(volume_path, upload.FileID), "wb") as f:
-        f.write(upload.File)
-        f.close()
+        for i in upload_IDs_map:
+            if upload_IDs_map[i]:
+                setattr(upload, i, request.form[f'{i}'])
 
-    # post file info into database
-    #database.create_table()
+        upload.InHotStorage = True
+        upload.InColdStorage = False
+    except Exception as e:
+        return response_json(e, status=500)
+    
+    # logging file and get file id from postgres
+    _status = 'get_file_id'
+    try:
+        upload.sql_injection_save()
 
-    # all is great valid response
+        file_info_save_query = f'''
+        INSERT INTO {psql_connector.table_main_name}
+        ({psql_connector.columns})
+        VALUES (DEFAULT, {upload.InHotStorage}, {upload.InColdStorage}, '{upload.UploadedDate}', 
+        '{upload.LastAcquiredDate}', {upload.UCDB_ID}, {upload.OCDB_ID}, {upload.SourceID}, 
+        {upload.ContractNumber}, '{upload.DocumentType}', '{upload.EDocumentType}', '{upload.SourceSystem}', 
+        '{upload.FileName}', '{upload.FileMimeType}','{upload.FileExtension}', {upload.SizeBytes},
+        '{upload.ACL}', '{upload.FileEncodingOnUpload}', '{upload.FileEncodingCurrent}',
+        '{upload.FileTypeInfo}', '{upload.FileTypeAuxInfo}', '{upload.Description}')
+        RETURNING "FileID";
+        '''
+        upload.FileID = psql_connector.query_fetch_one(file_info_save_query)[0]
+    except Exception as e:
+        return response_json(e, status=500)
+
+    # save file
+    try: 
+        with open(os.path.join(volume_path, str(upload.FileID)), "wb") as f:
+            f.write(upload.File)
+            f.close()
+    except Exception as e:
+        return response_json(e, status=500)
+
+    # all is OK valid response
     valid_response = {'FileID': upload.FileID}
 
-    # logging file in database
-    
-
-    
-    # logging filecloud_logs
     end = time.time()
-    #print(uploaded_file)
     print('Time elapsed', end-start)
     return Response(f"{valid_response}", status=200, mimetype='application/json')
    
     
-    
-
-    
-
-
-@app.route('/download', methods=['GET'])
+@app.route('/download', methods=['POST'])
 def download_file():
-    return request.data
+    global _status, psql_connector
+    print(request.data)
+    # server time of download
+    timestamp_download = datetime.datetime.now()
+
+    # measure download time
+    start = time.time()
+
+    # check if request schema is valid
+    _status = 'download_scheme_validation'
+    try:
+        request_dict = json.loads(request.data)
+        print(request_dict)
+        validate = schemas.validate_scheme(request_dict, download_validator)
+        if validate != True:
+            err = {'Error':''.join([str(i) for i in validate])}
+            return response_json(err, status=400)
+    except Exception as e:
+        return response_json(e, status=500)
+
+    # file download model generation
+    _status = 'download_model'
+    download = models.DownloadModel(required=request_dict)
+
+    # check if file in hot storage
+    try: 
+        with open(os.path.join(volume_path, str(download.FileID)), "rb") as f:
+            valid_response = f.read()
+            f.close()
+    except Exception as e:
+        return response_json(e, status=500)
+
+    #valid_response = b'\xFF\xAA\xD2'
+
+    end = time.time()
+    print('Time elapsed', end-start)
+
+    return Response(valid_response, status=200, mimetype='application/octet-stream')
+
 
 
 def system_exit(status, error):
@@ -257,8 +320,8 @@ if __name__ == '__main__':
                 table_exists = psql_connector.is_table_exists(table_name=check_table,
                 table_columns=psql_connector.table_main_columns)
                 if table_exists:
+                    psql_connector.table_main_name = check_table
                     break
-            psql_connector.table_main_name = check_table
         if table_exists != True:
             for i in range(1,20):
                 check_name = psql_connector.table_main_name + f'_{i}'

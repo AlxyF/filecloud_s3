@@ -11,6 +11,7 @@ class psql_connector:
         self.database = database
         self.table_main_name = table_main_name
         self.table_main_columns = table_main_columns
+        self.columns = ''.join([str(item) + ', ' for item in list(self.table_main_columns.keys())]).strip(', ')
         self.time_idle = 0
         self.connection = None
 
@@ -60,6 +61,30 @@ class psql_connector:
             self.connection.rollback()
             return e
 
+    def query_fetch_all(self, query):
+        try:
+            cursor = self.connection.cursor()
+            cursor.execute(query)
+            fetch = cursor.fetchall()
+            cursor.close()
+            self.connection.commit()
+            return fetch
+        except (Exception, psycopg2.DatabaseError, AttributeError) as e:
+            self.connection.rollback()
+            return e
+
+    def query_fetch_one(self, query):
+        try:
+            cursor = self.connection.cursor()
+            cursor.execute(query)
+            fetch = cursor.fetchone()
+            cursor.close()
+            self.connection.commit()
+            return fetch
+        except (Exception, psycopg2.DatabaseError, AttributeError) as e:
+            self.connection.rollback()
+            return e
+
     def create_table(self, table_name, table_columns):
         """ create table in the PostgreSQL database"""
         columns = str(table_columns).replace(':','').replace("'",'').strip('}').strip('{').replace(',',',\n')
@@ -87,9 +112,8 @@ class psql_connector:
 
     def is_table_exists(self, table_name, table_columns):
         '''Checks if table exists'''
-        columns = ''.join([str(item) + ', ' for item in list(table_columns.keys())]).strip(', ')
         query = f'''
-            select {columns} from {table_name};
+            select {self.columns} from {table_name};
         '''
         if self.query_execute(query) == True:
             return True
