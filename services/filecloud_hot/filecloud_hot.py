@@ -282,27 +282,29 @@ if __name__ == '__main__':
 
     # database session
     _status = 'postgresql_session_initialization'
-    try:
-        psql_connector = database.psql_connector(host=app_config.db_host, user=app_config.db_user, 
-        password=app_config.db_password, database=app_config.db_database, table_main_name=app_config.db_table_main_name,
-        table_main_columns=app_config.db_table_main_columns)
-        psql_connection = psql_connector.create_connection()
-        if type(psql_connection) == database.psycopg2.OperationalError:
-            system_exit(_status, psql_connection)
-        test_query = psql_connector.test_query()
-        if type(test_query) == database.psycopg2.OperationalError or type(test_query) == AttributeError:
-            system_exit(_status, test_query)
-    except Exception as e:
-        system_exit(_status, e)
+    #try:
+    psql_connector = database.psql_connector(host=app_config.db_host, user=app_config.db_user, 
+    password=app_config.db_password, database=app_config.db_database, table_main_name=app_config.db_table_main_name,
+    table_main_columns=app_config.db_table_main_columns)
+    psql_connection = psql_connector.create_connection()
+    if type(psql_connection) == database.psycopg2.OperationalError:
+        system_exit(_status, psql_connection)
+    test_query = psql_connector.test_query()
+    if type(test_query) == database.psycopg2.OperationalError or type(test_query) == AttributeError:
+        system_exit(_status, test_query)
+    #except Exception as e:
+    #    system_exit(_status, e)
     
     # database checks
     _status = 'postgresql_table_check'
     try:
+        table_name_exists = None
         table_name_exists = psql_connector.is_table_name_exists(table_name=psql_connector.table_main_name)
     except:
         system_exit(_status, table_name_exists)
     try:
         # if table name does not exists create one
+        create_table = None
         if table_name_exists != True:
             create_table = psql_connector.create_table(table_name=psql_connector.table_main_name,
             table_columns=psql_connector.table_main_columns)

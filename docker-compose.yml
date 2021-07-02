@@ -5,18 +5,31 @@ services:
         build: ./services/filecloud_hot
         command: python filecloud_hot.py run -h 0.0.0.0
 
-        volumes:
-            - type: volume
-              source: my_vol
-              target: /TEST
-
-
         #volumes:
-        #    - /mnt/c/Users/ALEX/TEST/:/TEST:rw
+        #    - type: volume
+        #      source: my_vol
+        #      target: /TEST
+              #/mnt/c/Users/ALEX/TEST/
+              #
+
+
+        volumes:
+            - /mnt/c/Users/ALEX/TEST/:/var/filestorage_hot:rw
+        networks:
+            - my_docker_network
         ports:
             - 5000:5000
         env_file:
             - ./.env.dev
+
+
+
+networks:
+    my_docker_network:
+        driver: bridge
+        ipam:
+            config:
+                - subnet: 10.5.0.0/16
 
 volumes: 
     my_vol:

@@ -2,7 +2,7 @@ class configuration_class:
     def __init__(self):
         self.host = '0.0.0.0'
         self.port = 5000
-        self.volume_path = '/mnt/c/Users/ALEX/TEST'
+        self.volume_path = '/var/filestorage_hot'#'/mnt/c/Users/ALEX/TEST'
     
         #self.volume_path = '/TEST'
         self.allowed_mime_types = ['application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -19,7 +19,7 @@ class configuration_class:
         'file_size', 'file_extension', 'file_type']
         self.log_csv_file_name = 'logger_file_cloud_s3_hot.csv'
         
-        self.db_host = 'localhost'
+        self.db_host = '172.30.12.97'#'172.30.0.1'
         self.db_database = 'filecloud_s3'
         self.db_user = 'filecloud'
         self.db_password = 'filecloud'
