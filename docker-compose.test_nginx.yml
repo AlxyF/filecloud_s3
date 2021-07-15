@@ -1,0 +1,38 @@
+version: '3.8'
+services:
+    filecloud_hot:
+        build: 
+            context: ./services/filecloud_hot
+            dockerfile: Dockerfile.test
+            args:
+                - VOLUME_FILES=${VOLUME_FILES}
+        container_name: filecloud_hot-test
+        volumes:
+            - filecloud_hot_data:${VOLUME_FILES}:rw
+        command: >
+                gunicorn --bind 0.0.0.0:5000 manage:app
+        expose:
+            - 5000
+        env_file:
+            - ./.env.dev
+        depends_on:
+            - db
+    db:
+        build:
+            context: ./services/postgres_test
+            dockerfile: db.Dockerfile
+        container_name: filecloud_hot-db-test
+        volumes:
+            - postgres_data:/var/lib/postgresql/data/
+        env_file: 
+            - ./.env.dev.db
+    nginx:
+        build: ./services/nginx
+        container_name: filecloud_hot-nginx-test
+        ports:
+            - 1337:80
+        depends_on:
+            - filecloud_hot
+volumes:
+    filecloud_hot_data: 
+    postgres_data:

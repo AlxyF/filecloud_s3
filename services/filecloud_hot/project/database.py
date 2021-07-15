@@ -28,6 +28,12 @@ class psql_connector:
         except (Exception, psycopg2.DatabaseError) as e:
             return e
 
+    def close_connection(self):
+        try:
+            self.connection.close()
+        except (Exception, psycopg2.DatabaseError) as e:
+            return e
+
     def is_db_available(self):
         try:
             conn = psycopg2.connect(dbname=self.database, user=self.user, 
@@ -41,21 +47,25 @@ class psql_connector:
 
     def test_query(self):
         try:
+            self.create_connection()
             test_query = 'select 1;'
             cursor = self.connection.cursor()
             cursor.execute(test_query)
             cursor.close()
             self.connection.commit()
+            self.close_connection()
             return True
         except (Exception, psycopg2.DatabaseError, AttributeError ) as e:
             return e
 
     def query_execute(self, query):
         try:
+            self.create_connection()
             cursor = self.connection.cursor()
             cursor.execute(query)
             cursor.close()
             self.connection.commit()
+            self.close_connection()
             return True
         except (Exception, psycopg2.DatabaseError, AttributeError) as e:
             self.connection.rollback()
@@ -63,11 +73,13 @@ class psql_connector:
 
     def query_fetch_all(self, query):
         try:
+            self.create_connection()
             cursor = self.connection.cursor()
             cursor.execute(query)
             fetch = cursor.fetchall()
             cursor.close()
             self.connection.commit()
+            self.close_connection()
             return fetch
         except (Exception, psycopg2.DatabaseError, AttributeError) as e:
             self.connection.rollback()
@@ -75,11 +87,13 @@ class psql_connector:
 
     def query_fetch_one(self, query):
         try:
+            self.create_connection()
             cursor = self.connection.cursor()
             cursor.execute(query)
             fetch = cursor.fetchone()
             cursor.close()
             self.connection.commit()
+            self.close_connection()
             return fetch
         except (Exception, psycopg2.DatabaseError, AttributeError) as e:
             self.connection.rollback()

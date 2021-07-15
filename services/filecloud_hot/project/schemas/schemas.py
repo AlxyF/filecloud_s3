@@ -2,13 +2,12 @@ from pathlib import Path
 from typing import Dict
 import json, jsonref, jsonschema, yaml
 from jsonschema import Draft7Validator
-import jsonschema
 
 def fetch_openapi_yaml(filename='FileCloudService_S3.yaml', filepath=__file__) -> Dict:
     '''Fetching yaml openapi file and converting it into json
     default filepath is current module location.'''
 
-    with open(Path(filepath).with_name(filename)) as f:
+    with open(Path(filepath).with_name(filename), encoding='utf-8') as f:
         json_api = jsonref.loads(json.dumps(yaml.safe_load(f)))
         return json_api
 

@@ -1,35 +1,14 @@
 version: '3.8'
-
 services:
     filecloud_hot:
-        build: ./services/filecloud_hot
-        command: python filecloud_hot.py run -h 0.0.0.0
-
-        #volumes:
-        #    - type: volume
-        #      source: my_vol
-        #      target: /TEST
-              #/mnt/c/Users/ALEX/TEST/
-              #
-
-
+        build: 
+            context: ./services/filecloud_hot
+            args:
+                - VOLUME_FILES=${VOLUME_FILES} 
+        command: gunicorn --bind 0.0.0.0:5000 manage:app
         volumes:
-            - /mnt/c/Users/ALEX/TEST/:/var/filestorage_hot:rw
-        networks:
-            - my_docker_network
+            - ${VOLUME_FILES}:${VOLUME_FILES}:rw
         ports:
             - 5000:5000
         env_file:
             - ./.env.dev
-
-
-
-networks:
-    my_docker_network:
-        driver: bridge
-        ipam:
-            config:
-                - subnet: 10.5.0.0/16
-
-volumes: 
-    my_vol:

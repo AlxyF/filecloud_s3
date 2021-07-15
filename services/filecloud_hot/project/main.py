@@ -1,16 +1,17 @@
 # importing side libraries
 from flask import Flask, Response, request
+#from flask_sqlalchemy import SQLAlchemy
 from flasgger import Swagger
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
 # importing default python libraries
 import os, sys, time, csv, json, datetime
 # importing project modules
-from config import configuration_class
-from filecloud_api.schemas import schemas
-from filecloud_api.models import models
-from filecloud_api import file_aux
-from filecloud_api import database
+from project.config import configuration_class
+from project.schemas import schemas
+from project.models import models
+from project import file_aux
+from project import database
 
 '''Flask app'''
 _status = 'Initializing application'
@@ -19,6 +20,13 @@ app.config['SWAGGER'] = {
     'title': 'FileCloudService_s3',
     'openapi': '3.0.3'
 }
+print('TEST11111111111111111111')
+volume_path = '/var/filestorage_hot'
+try:
+    pass
+    # if volume is available
+except:
+    pass
 # hardcode flask restrictions
 app.config['MAX_CONTENT_PATH'] = 255
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024 # 50 Mb
@@ -49,6 +57,7 @@ def response_json(json_string, status, mimetype='application/json'):
 '''API routes'''
 @app.route('/', methods=['GET'])
 def index():
+    print('HOME PAGE', flush=True)
     return 'HomePage'
 
 
@@ -198,6 +207,12 @@ def upload_file():
             f.write(upload.File)
             f.close()
     except Exception as e:
+        query_fail_save = f'''
+        UPDATE {psql_connector.table_main_name}
+        SET "InHotStorage" = False
+        WHERE "FileID" = {upload.FileID};
+        '''
+        psql_connector.query_execute(query_fail_save)
         return response_json(e, status=500)
 
     # all is OK valid response
@@ -256,95 +271,86 @@ def system_exit(status, error):
     sys.exit(error)
 
 
-if __name__ == '__main__':
-    _status = 'configuration'
-    # configuration
-    try:
-        app_config = configuration_class()
+#if __name__ == '__main__':
+_status = 'configuration'
+# configuration
+try:
+    app_config = configuration_class()
 
-        # volume path
-        volume_path = app_config.volume_path
+    # volume path
+    #volume_path = app_config.volume_path
 
-        # restrictions
-        allowed_file_extensions = app_config.allowed_file_extensions
-        allowed_mime_types = app_config.allowed_mime_types
-        allowed_file_max_size_bytes = app_config.allowed_file_max_size_bytes
+    # restrictions
+    allowed_file_extensions = app_config.allowed_file_extensions
+    allowed_mime_types = app_config.allowed_mime_types
+    allowed_file_max_size_bytes = app_config.allowed_file_max_size_bytes
 
-        # upload id
-        upload_IDs = app_config.upload_IDs
-    except Exception as e:
-        system_exit(_status, e)
+    # upload id
+    upload_IDs = app_config.upload_IDs
+except Exception as e:
+    system_exit(_status, e)
 
-    # later change to stdout logs
-    with open(app_config.log_csv_file_name, 'w', encoding='UTF8') as f:
-        writer = csv.writer(f)
-        writer.writerow(app_config.log_csv_header)
+# later change to stdout logs
+with open(app_config.log_csv_file_name, 'w', encoding='UTF8') as f:
+    writer = csv.writer(f)
+    writer.writerow(app_config.log_csv_header)
 
-    # database session
-    _status = 'postgresql_session_initialization'
-    #try:
-    psql_connector = database.psql_connector(host=app_config.db_host, user=app_config.db_user, 
-    password=app_config.db_password, database=app_config.db_database, table_main_name=app_config.db_table_main_name,
-    table_main_columns=app_config.db_table_main_columns)
-    psql_connection = psql_connector.create_connection()
-    if type(psql_connection) == database.psycopg2.OperationalError:
-        system_exit(_status, psql_connection)
-    test_query = psql_connector.test_query()
-    if type(test_query) == database.psycopg2.OperationalError or type(test_query) == AttributeError:
-        system_exit(_status, test_query)
-    #except Exception as e:
-    #    system_exit(_status, e)
+
+# database session
+_status = 'postgresql_session_initialization'
+#try:
+psql_connector = database.psql_connector(host=app_config.db_host, user=app_config.db_user, 
+password=app_config.db_password, database=app_config.db_database, table_main_name=app_config.db_table_main_name,
+table_main_columns=app_config.db_table_main_columns)
+psql_connection = psql_connector.create_connection()
+if type(psql_connection) == database.psycopg2.OperationalError:
+    system_exit(_status, psql_connection)
+psql_connection = psql_connector.close_connection()
+test_query = psql_connector.test_query()
+if type(test_query) == database.psycopg2.OperationalError or type(test_query) == AttributeError:
+    system_exit(_status, test_query)
+#except Exception as e:
+#    system_exit(_status, e)
+
+# database checks
+_status = 'postgresql_table_check'
+try:
+    table_name_exists = None
+    table_name_exists = psql_connector.is_table_name_exists(table_name=psql_connector.table_main_name)
+except:
+    system_exit(_status, table_name_exists)
+try:
+    # if table name does not exists create one
+    create_table = None
+    if table_name_exists != True:
+        create_table = psql_connector.create_table(table_name=psql_connector.table_main_name,
+        table_columns=psql_connector.table_main_columns)
+except:
+    system_exit(_status, create_table)
+
+try:
+    # if table name exists but not all columns are present create new table _{i} version
+    table_exists = psql_connector.is_table_exists(table_name=psql_connector.table_main_name,
+    table_columns=psql_connector.table_main_columns)
     
-    # database checks
-    _status = 'postgresql_table_check'
-    try:
-        table_name_exists = None
-        table_name_exists = psql_connector.is_table_name_exists(table_name=psql_connector.table_main_name)
-    except:
-        system_exit(_status, table_name_exists)
-    try:
-        # if table name does not exists create one
-        create_table = None
-        if table_name_exists != True:
-            create_table = psql_connector.create_table(table_name=psql_connector.table_main_name,
+    if table_exists != True:
+        for i in range(1,20):
+            check_table = psql_connector.table_main_name + f'_{i}'
+            table_exists = psql_connector.is_table_exists(table_name=check_table,
             table_columns=psql_connector.table_main_columns)
-    except:
-        system_exit(_status, create_table)
+            if table_exists:
+                psql_connector.table_main_name = check_table
+                break
+    if table_exists != True:
+        for i in range(1,20):
+            check_name = psql_connector.table_main_name + f'_{i}'
+            table_name_exists_aux = psql_connector.is_table_name_exists(table_name=check_name)
+            if table_name_exists_aux != True:
+                break
+        create_table = psql_connector.create_table(table_name=check_name,
+    table_columns=psql_connector.table_main_columns)
+        psql_connector.table_main_name = check_name
+except Exception as e:
+    system_exit(_status, create_table)
 
-    try:
-        # if table name exists but not all columns are present create new table _{i} version
-        table_exists = psql_connector.is_table_exists(table_name=psql_connector.table_main_name,
-        table_columns=psql_connector.table_main_columns)
-        
-        if table_exists != True:
-            for i in range(1,20):
-                check_table = psql_connector.table_main_name + f'_{i}'
-                table_exists = psql_connector.is_table_exists(table_name=check_table,
-                table_columns=psql_connector.table_main_columns)
-                if table_exists:
-                    psql_connector.table_main_name = check_table
-                    break
-        if table_exists != True:
-            for i in range(1,20):
-                check_name = psql_connector.table_main_name + f'_{i}'
-                table_name_exists_aux = psql_connector.is_table_name_exists(table_name=check_name)
-                if table_name_exists_aux != True:
-                    break
-            create_table = psql_connector.create_table(table_name=check_name,
-        table_columns=psql_connector.table_main_columns)
-            psql_connector.table_main_name = check_name
-    except Exception as e:
-        system_exit(_status, create_table)
-
-    app.run(debug=True, host=app_config.host, port=app_config.port, threaded=True)
-
-
-
-        
-
-
-
-
-    
-    
-    
+    #app.run(debug=True, host=app_config.host, port=app_config.port, threaded=True)

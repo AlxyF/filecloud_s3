@@ -3,6 +3,8 @@ click==8.0.1
 contextlib2==0.6.0.post1
 flasgger==0.9.5
 Flask==2.0.1
+Flask-SQLAlchemy==2.5.1
+gunicorn==20.1.0
 itsdangerous==2.0.1
 Jinja2==3.0.1
 jmespath==0.10.0
@@ -14,6 +16,7 @@ psycopg2-binary==2.9.1
 pyrsistent==0.17.3
 python-dateutil==2.8.1
 python-magic==0.4.24
+python-dotenv==0.18.0
 PyYAML==5.4.1
 s3transfer==0.4.2
 schema==0.7.4

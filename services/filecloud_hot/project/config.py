@@ -19,7 +19,7 @@ class configuration_class:
         'file_size', 'file_extension', 'file_type']
         self.log_csv_file_name = 'logger_file_cloud_s3_hot.csv'
         
-        self.db_host = '172.30.12.97'#'172.30.0.1'
+        self.db_host = 'db'#'172.28.16.1' '172.28.19.183'
         self.db_database = 'filecloud_s3'
         self.db_user = 'filecloud'
         self.db_password = 'filecloud'
