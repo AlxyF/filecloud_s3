@@ -1,5 +1,5 @@
 #!/bin/sh
-echo "Entrypoint for filecloud_hot"
+echo "Entrypoint for filecloud_cold"
 
 #uservar=$(whoami)
 #echo "$uservar"

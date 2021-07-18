@@ -127,7 +127,7 @@ class psql_connector:
     def is_table_exists(self, table_name, table_columns):
         '''Checks if table exists'''
         query = f'''
-            select {self.columns} from {table_name} limit 1;
+            select {self.columns} from {table_name};
         '''
         if self.query_execute(query) == True:
             return True

@@ -4,6 +4,7 @@ from flask import Flask, Response, request
 from flasgger import Swagger
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
+from dotenv import load_dotenv
 # importing default python libraries
 import os, sys, time, csv, json, datetime
 # importing project modules
@@ -12,47 +13,140 @@ from project.schemas import schemas
 from project.models import models
 from project import file_aux
 from project import database
+from project import s3_connector
+load_dotenv()
 
-'''Flask app'''
-_status = 'Initializing application'
-app = Flask(__name__)
-app.config['SWAGGER'] = {
-    'title': 'FileCloudService_s3',
-    'openapi': '3.0.3'
-}
-print('TEST11111111111111111111')
-volume_path = '/var/filestorage_hot'
-try:
-    pass
-    # if volume is available
-except:
-    pass
-# hardcode flask restrictions
-app.config['MAX_CONTENT_PATH'] = 255
-app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024 # 50 Mb
+'''System exit'''
+def system_exit(status, error):
+    write_log_entry(status, error) 
+    sys.exit(4) # gunicorn will stop only with code 4
 
-'''Schemas preparation'''
-openapi_specification = schemas.fetch_openapi_yaml()
 
-upload_schema = schemas.get_scheme(json_api=openapi_specification, schema_name='Upload')
-upload_validator = schemas.get_schema_validator(upload_schema)
-
-download_schema = schemas.get_scheme(json_api=openapi_specification, schema_name='Download')
-download_validator = schemas.get_schema_validator(download_schema)
-
-swagger = Swagger(app, template=openapi_specification)
-#filecloud_app.config['UPLOAD_FOLDER'] = '/mnt/c/Users/ALEX/var'
 
 '''Logger'''
 def write_log_entry(log_status,log_message):
     timestamp = time.time()
     return 0
 
+
+'''Flask app'''
+_status = 'Initializing application'
+app = Flask(__name__)
+app.config['SWAGGER'] = { 'title': 'FileCloudService_s3', 'openapi': '3.0.3' }
+app.config['MAX_CONTENT_PATH'] = 255
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024 # 50 Mb
+
+
+'''File volume'''
+volume_path = os.getenv('VOLUME_FILES')
+try:
+    _status = 'Checking volume availability'
+    with open(os.path.join(volume_path, "test_file"), "wb") as f:
+        f.write(b'\xd0\x91\xd0\xb0\xd0\xb9\xd1\x82\xd1\x8b')
+        f.close()
+except Exception as e:
+    system_exit(_status, e)
+
+
+'''Configuration'''
+def configuration():
+    global _status, app_config, allowed_file_extensions, allowed_mime_types, allowed_file_max_size_bytes, upload_IDs
+    #if __name__ == '__main__':
+    _status = 'configuration'
+    # configuration
+    try:
+        app_config = configuration_class()
+
+        # volume path
+        #volume_path = app_config.volume_path
+
+        # restrictions
+        allowed_file_extensions = app_config.allowed_file_extensions
+        allowed_mime_types = app_config.allowed_mime_types
+        allowed_file_max_size_bytes = app_config.allowed_file_max_size_bytes
+
+        # upload id
+        upload_IDs = app_config.upload_IDs
+    except Exception as e:
+        system_exit(_status, e)
+configuration()
+
+
+'''Database connector and checks'''
+def database_connector_and_checks():
+    global _status, app_config, psql_connector
+    # database session
+    _status = 'postgresql_session_initialization'
+    try:
+        psql_connector = database.psql_connector(host=app_config.db_host, user=app_config.db_user, 
+        password=app_config.db_password, database=app_config.db_database, table_main_name=app_config.db_table_main_name,
+        table_main_columns=app_config.db_table_main_columns)
+        psql_connection = psql_connector.create_connection()
+        if type(psql_connection) == database.psycopg2.OperationalError:
+            system_exit(_status, psql_connection)
+        psql_connection = psql_connector.close_connection()
+        test_query = psql_connector.test_query()
+        if type(test_query) == database.psycopg2.OperationalError or type(test_query) == AttributeError:
+            system_exit(_status, test_query)
+    except Exception as e:
+        system_exit(_status, e)
+    # database checks
+    _status = 'postgresql_table_check'
+    try:
+        table_name_exists = None
+        table_name_exists = psql_connector.is_table_name_exists(table_name=psql_connector.table_main_name)
+    except:
+        system_exit(_status, table_name_exists)
+    try:
+        # if table name does not exists create one
+        create_table = None
+        if table_name_exists != True:
+            create_table = psql_connector.create_table(table_name=psql_connector.table_main_name,
+            table_columns=psql_connector.table_main_columns)
+    except:
+        system_exit(_status, create_table)
+
+    try:
+        # if table name exists but not all columns are present create new table _{i} version
+        table_exists = psql_connector.is_table_exists(table_name=psql_connector.table_main_name,
+        table_columns=psql_connector.table_main_columns)
+        if table_exists != True:
+            for i in range(1,20):
+                check_table = psql_connector.table_main_name + f'_{i}'
+                table_exists = psql_connector.is_table_exists(table_name=check_table,
+                table_columns=psql_connector.table_main_columns)
+                if table_exists:
+                    psql_connector.table_main_name = check_table
+                    break
+        if table_exists != True:
+            for i in range(1,20):
+                check_name = psql_connector.table_main_name + f'_{i}'
+                table_name_exists_aux = psql_connector.is_table_name_exists(table_name=check_name)
+                if table_name_exists_aux != True:
+                    break
+            create_table = psql_connector.create_table(table_name=check_name,
+        table_columns=psql_connector.table_main_columns)
+            psql_connector.table_main_name = check_name
+    except Exception as e:
+        system_exit(_status, create_table)
+database_connector_and_checks()
+
+
+'''Schemas preparation'''
+openapi_specification = schemas.fetch_openapi_yaml()
+upload_schema = schemas.get_scheme(json_api=openapi_specification, schema_name='Upload')
+upload_validator = schemas.get_schema_validator(upload_schema)
+download_schema = schemas.get_scheme(json_api=openapi_specification, schema_name='Download')
+download_validator = schemas.get_schema_validator(download_schema)
+swagger = Swagger(app, template=openapi_specification)
+
+
 '''Responses'''
 def response_json(json_string, status, mimetype='application/json'):
     log_status, log_message = status, json_string
     write_log_entry(log_status, log_message)
     return Response(f"{json_string}", status=status, mimetype=mimetype)
+
 
 '''API routes'''
 @app.route('/', methods=['GET'])
@@ -219,6 +313,7 @@ def upload_file():
     valid_response = {'FileID': upload.FileID}
 
     end = time.time()
+    # write log entry
     print('Time elapsed', end-start)
     return Response(f"{valid_response}", status=200, mimetype='application/json')
    
@@ -226,7 +321,6 @@ def upload_file():
 @app.route('/download', methods=['POST'])
 def download_file():
     global _status, psql_connector
-    print(request.data)
     # server time of download
     timestamp_download = datetime.datetime.now()
 
@@ -237,7 +331,6 @@ def download_file():
     _status = 'download_scheme_validation'
     try:
         request_dict = json.loads(request.data)
-        print(request_dict)
         validate = schemas.validate_scheme(request_dict, download_validator)
         if validate != True:
             err = {'Error':''.join([str(i) for i in validate])}
@@ -250,107 +343,39 @@ def download_file():
     download = models.DownloadModel(required=request_dict)
 
     # check if file in hot storage
+    query_check_cold = f'''
+    SELECT "InColdStorage"
+    FROM {psql_connector.table_main_name}
+    WHERE "FileID" = {download.FileID}
+    '''
+    print(psql_connector.query_fetch_one(query_check_cold))
     try: 
         with open(os.path.join(volume_path, str(download.FileID)), "rb") as f:
             valid_response = f.read()
             f.close()
     except Exception as e:
-        return response_json(e, status=500)
-
-    #valid_response = b'\xFF\xAA\xD2'
+        query_check_cold = f'''
+        SELECT "InColdStorage"
+        FROM {psql_connector.table_main_name}
+        WHERE "FileID" = {download.FileID}
+        '''
+        if psql_connector.query_fetch_one(query_check_cold) == None:
+            return response_json('File with this ID was never uploaded', status=404)
+        if psql_connector.query_fetch_one(query_check_cold)[0] == False:
+            return response_json('File with this ID was deleted', status=410)
+        if psql_connector.query_fetch_one(query_check_cold)[0] == True:
+            s3_connector.download_file(download.FileID)
 
     end = time.time()
     print('Time elapsed', end-start)
+    # write log
 
     return Response(valid_response, status=200, mimetype='application/octet-stream')
 
 
 
-def system_exit(status, error):
-    write_log_entry(status, error) 
-    sys.exit(error)
-
-
-#if __name__ == '__main__':
-_status = 'configuration'
-# configuration
-try:
-    app_config = configuration_class()
-
-    # volume path
-    #volume_path = app_config.volume_path
-
-    # restrictions
-    allowed_file_extensions = app_config.allowed_file_extensions
-    allowed_mime_types = app_config.allowed_mime_types
-    allowed_file_max_size_bytes = app_config.allowed_file_max_size_bytes
-
-    # upload id
-    upload_IDs = app_config.upload_IDs
-except Exception as e:
-    system_exit(_status, e)
 
 # later change to stdout logs
 with open(app_config.log_csv_file_name, 'w', encoding='UTF8') as f:
     writer = csv.writer(f)
     writer.writerow(app_config.log_csv_header)
-
-
-# database session
-_status = 'postgresql_session_initialization'
-#try:
-psql_connector = database.psql_connector(host=app_config.db_host, user=app_config.db_user, 
-password=app_config.db_password, database=app_config.db_database, table_main_name=app_config.db_table_main_name,
-table_main_columns=app_config.db_table_main_columns)
-psql_connection = psql_connector.create_connection()
-if type(psql_connection) == database.psycopg2.OperationalError:
-    system_exit(_status, psql_connection)
-psql_connection = psql_connector.close_connection()
-test_query = psql_connector.test_query()
-if type(test_query) == database.psycopg2.OperationalError or type(test_query) == AttributeError:
-    system_exit(_status, test_query)
-#except Exception as e:
-#    system_exit(_status, e)
-
-# database checks
-_status = 'postgresql_table_check'
-try:
-    table_name_exists = None
-    table_name_exists = psql_connector.is_table_name_exists(table_name=psql_connector.table_main_name)
-except:
-    system_exit(_status, table_name_exists)
-try:
-    # if table name does not exists create one
-    create_table = None
-    if table_name_exists != True:
-        create_table = psql_connector.create_table(table_name=psql_connector.table_main_name,
-        table_columns=psql_connector.table_main_columns)
-except:
-    system_exit(_status, create_table)
-
-try:
-    # if table name exists but not all columns are present create new table _{i} version
-    table_exists = psql_connector.is_table_exists(table_name=psql_connector.table_main_name,
-    table_columns=psql_connector.table_main_columns)
-    
-    if table_exists != True:
-        for i in range(1,20):
-            check_table = psql_connector.table_main_name + f'_{i}'
-            table_exists = psql_connector.is_table_exists(table_name=check_table,
-            table_columns=psql_connector.table_main_columns)
-            if table_exists:
-                psql_connector.table_main_name = check_table
-                break
-    if table_exists != True:
-        for i in range(1,20):
-            check_name = psql_connector.table_main_name + f'_{i}'
-            table_name_exists_aux = psql_connector.is_table_name_exists(table_name=check_name)
-            if table_name_exists_aux != True:
-                break
-        create_table = psql_connector.create_table(table_name=check_name,
-    table_columns=psql_connector.table_main_columns)
-        psql_connector.table_main_name = check_name
-except Exception as e:
-    system_exit(_status, create_table)
-
-    #app.run(debug=True, host=app_config.host, port=app_config.port, threaded=True)

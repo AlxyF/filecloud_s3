@@ -26,13 +26,20 @@ EXPOSE 5000
 RUN mkdir -p /home/app
 # create the appropriate directories
 ENV HOME=/home/app
+
 ENV APP_HOME=/home/app/filecloud_hot
 ENV FLASK_APP=/home/app/filecloud_hot/manage.py
 ENV FLASK_ENV=development
+
 ARG VOLUME_FILES
 ENV VOLUME_FILES $VOLUME_FILES
+
+ARG AWS_SHARED_CREDENTIALS_FILE
+ENV AWS_SHARED_CREDENTIALS_FILE $AWS_SHARED_CREDENTIALS_FILE
+
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=TRUE
+
 RUN mkdir $APP_HOME
 WORKDIR $APP_HOME
 # install dependencies

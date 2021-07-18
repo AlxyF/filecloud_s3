@@ -3,8 +3,10 @@ services:
     filecloud_hot:
         build: 
             context: ./services/filecloud_hot
+            dockerfile: 
             args:
-                - VOLUME_FILES=${VOLUME_FILES} 
+                - VOLUME_FILES=${VOLUME_FILES}
+                - AWS_SHARED_CREDENTIALS_FILE=${AWS_SHARED_CREDENTIALS_FILE}
         command: gunicorn --bind 0.0.0.0:5000 manage:app
         volumes:
             - ${VOLUME_FILES}:${VOLUME_FILES}:rw
