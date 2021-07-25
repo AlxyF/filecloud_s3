@@ -7,21 +7,21 @@ info:
   contact:
     name: 'API Support'
     email: architects@migcredit.ru
-  version: 0.0.5
-  # DocumentType and file meta data may be later changed/refined
+  version: 0.0.6
+  # DocumentType and file meta data may be changed/refined later
   
 externalDocs:
-  url: https://confluence.migcredit.ru/pages/viewpage.action?pageId=99614970
+  url: https://confluence.migcredit.ru/pages/viewpage.action?pageId=121602081
   description: 'FileCloud service architecture'
   
 servers:
-- url: https://0.0.0.0/
+- url: http://mck-t3-docker-filecloud.mgc.local/
   description: 'Development server'
   variables:
     username:
       default: 'Test'
     port:
-      default: '5000'
+      default: '5000' # '1337' with ngnix
 - url: https://0.0.0.0/
   description: 'Production server'
   variables:
@@ -53,7 +53,6 @@ paths:
           multipart/form-data:
             schema:
                 $ref: '#/components/schemas/Upload'
-
       responses:
         '200':
           $ref: '#/components/responses/FileUploaded'
@@ -93,7 +92,7 @@ paths:
           $ref: '#/components/responses/InternalServerError'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
-  /fileCloud/getFileList:
+  /fileCloud/fileList:
     post:
       tags:
         - 'multipleFiles'
@@ -105,10 +104,10 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GetFileList'
+              $ref: '#/components/schemas/FileList'
       responses:
         '200':
-          $ref: '#/components/responses/GetAssociatedList'
+          $ref: '#/components/responses/AssociatedList'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -119,6 +118,33 @@ paths:
           $ref: '#/components/responses/InternalServerError'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
+  /fileCloud/fileMeta:
+    post:
+      tags:
+        - 'singleFile'
+      summary: 'Get file meta'
+      operationId: 'fileMeta'
+      description: 'Get file meta by ID'
+      requestBody:
+        description: 'File Meta'
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileMeta'
+      responses:
+        '200':
+          $ref: '#/components/responses/FileMeta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/FileNotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'        
+  
   /fileCloud/delete:
     post:
       tags:
@@ -163,8 +189,8 @@ components:
               FileID:
                 type: integer
                 description: 'File ID'
-    GetAssociatedList:
-      description: 'File succesfully uploaded'
+    AssociatedList:
+      description: 'List of files id with or with succesfully uploaded'
       content:
         application/json:
           schema:
@@ -173,29 +199,7 @@ components:
               FileList:
                 type: array
                 items:
-                  type: object
-                  properties:
-                  # file metadata, mapped from fileCloud_meta_db
-                    DocumentType:
-                      $ref: '#/components/schemas/DocumentType'
-                    Description:
-                      type: string
-                      description: ''
-                    SourceSystem:
-                      type: string
-                      description: ''
-                    Size:
-                      type: integer
-                      description: 'Size in bytes'
-                    FileType:
-                      $ref: '#/components/schemas/FileType'
-                    TimeStamp:
-                      $ref: '#/components/schemas/TimeStamp'
-                    ACL:
-                      $ref: '#/components/schemas/ACL'
-                    InLocalCache:
-                      type: boolean
-                      description: '1 - in local cache, 0 - in s3 cloud'
+                  $ref: '#/components/schemas/FileMetaObject'
     UnauthorizedError:
       description: 'Access token is missing or invalid'
       content:
@@ -263,8 +267,69 @@ components:
         text/plain:
           schema:
             type: string
-            description: 'Bad file error message'  
+            description: 'Bad file error message' 
+    FileMeta:
+      description: 'File Meta'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/FileMetaObject'
+    
   schemas:
+    FileMetaObject:
+      type: object
+      properties:
+        FileID:
+          $ref: '#/components/schemas/FileID'
+        InHotStorage:
+          type: boolean
+          description: 'Is file is in local cache'
+        InColdStorage:
+          type: boolean
+          description: 'Is file is in cloud cache'
+        UploadedDate:
+          $ref: '#/components/schemas/TimeStamp'
+        LastAcquiredDate:
+          $ref: '#/components/schemas/TimeStamp'
+        UCDB_ID:
+          $ref: '#/components/schemas/IntegerID'
+        OCDB_ID:
+          $ref: '#/components/schemas/IntegerID'
+        SourceID:
+          $ref: '#/components/schemas/SourceID'
+        ContractNumber:
+          $ref: '#/components/schemas/IntegerID'
+        DocumentType:
+          $ref: '#/components/schemas/DocumentType'
+        EDocumentType:
+          $ref: '#/components/schemas/EDocumentType'
+        SourceSystem:
+          $ref: '#/components/schemas/SourceSystem'
+        FileName:
+          type: string
+        MimeType:
+          type: string
+        FileExtension:
+          type: string
+        SizeBytes:
+          type: integer
+        ACL:
+          $ref: '#/components/schemas/ACL'
+        EncodingOnUpload:
+          $ref: '#/components/schemas/Encoding'
+        EncodingCurrent:
+          $ref: '#/components/schemas/Encoding'
+        EncryptionOnCloud:
+          type: string
+          description: 'Encryption method for file before sending to cloud'
+        FileTypeInfo:
+          type: string
+          description: 'Information about file type'
+        FileTypeAuxInfo:
+          type: string
+          description: 'Aux information about file type'
+        Description:
+          type: string
     Upload:
       type: object
       required:
@@ -273,6 +338,7 @@ components:
         - SourceSystem
         - Description
         - DocumentType
+        - EDocumentType
         - File
       properties:
         MessageID:
@@ -286,6 +352,8 @@ components:
           description: 'File description from source system'
         DocumentType:
           $ref: '#/components/schemas/DocumentType'
+        EDocumentType:
+          $ref: '#/components/schemas/EDocumentType'
         File:
           type: string
           format: binary
@@ -315,25 +383,42 @@ components:
           $ref: '#/components/schemas/FileID'
         Encoding:
           $ref: '#/components/schemas/Encoding'
-    GetFileList:
+    FileList:
       type: object
       required:
         - MessageID
         - MessageDate
+        - WithMeta
+         # must be at least one of the IDs to get 200 OK
       properties:
         MessageID:
           $ref: '#/components/schemas/MessageID'
         MessageDate:
           $ref: '#/components/schemas/MessageDate'
+        WithMeta:
+          $ref: '#/components/schemas/WithMeta'
           # must be at least one of these IDs to get 200 OK
         UCDB_ID:
-          $ref: '#/components/schemas/IntegerID'
+            $ref: '#/components/schemas/IntegerID'
         OCDB_ID:
           $ref: '#/components/schemas/IntegerID'
         SourceID:
           $ref: '#/components/schemas/SourceID'
         ContractNumber:
           $ref: '#/components/schemas/IntegerID'
+    FileMeta:
+      type: object
+      required:
+        - MessageID
+        - MessageDate
+        - FileID
+      properties:
+        MessageID:
+          $ref: '#/components/schemas/MessageID'
+        MessageDate:
+          $ref: '#/components/schemas/MessageDate'
+        FileID:
+          $ref: '#/components/schemas/FileID'
     Delete:
       type: object
       required:
@@ -347,7 +432,11 @@ components:
           $ref: '#/components/schemas/MessageDate'
         FileID:
           $ref: '#/components/schemas/FileID'
-          
+    
+    WithMeta:
+      type: boolean
+      description: 'Send files with corresponding metadata'
+      default: False
     MessageID: 
       type: string
       description: 'Source system request ID for logging purpose'
@@ -356,8 +445,7 @@ components:
       description: 'Source system request timestamp for logging purpose'
     TimeStamp:
       type: string
-      # timestamp format will be in description in future version
-      description: 'TimeStamp format'
+      description: 'TimeStamp format YYYY-MM-DDTHH:MM:SS. mmmmmm'
     SourceID:
       type: string
       description: 'Source system id associated with the file'
@@ -377,12 +465,10 @@ components:
              'PAD',
              'WEB',
              'FIS',
+             'CRM',
              'ABS',
              'AGENTS']
       description: 'System by which upload is initiated'
-    FileType:
-      type: string
-      description: 'File type by fileCloud'
     ACL:
       type: object
       properties:
@@ -399,62 +485,82 @@ components:
                 items:
                   $ref: '#/components/schemas/SourceSystem'
       description: 'File ACL'
+    EDocumentType:
+      type: string
+      description: 'https://confluence.migcredit.ru/pages/viewpage.action?pageId=32080124'
+      enum: ['Personal Form',
+            'Client application form',
+            'Documents SP',
+            'Auto Docs',
+            'Clien Dosc',
+            'Opty Docs',
+            'Application',
+            'Cession Reject',
+            'Documents On The Loan',
+            'Others',
+            'Scan On The Loan',
+            'Consent Office',
+            'Photography business',
+            'Photo',
+            'Template',
+            'Form Template',
+            'Opty Template',
+            'Cession Reject template',
+            'Note Template',
+            'Agreement Template',
+            'Documents By The Card',
+            'Delivery Document',
+            'Empty Scan',
+            'Scan',
+            'Opty Scan',
+            'IdentificationScan',
+            'ServiceSertificateLA',
+            'Refinance contract']
     DocumentType:
       type: string
-      description: 'https://confluence.migcredit.ru/pages/viewpage.action?pageId=42078422'
+      description: 'https://confluence.migcredit.ru/pages/viewpage.action?pageId=42083725'
       enum: ['CessionReject',
-             'IndoconsNotificationCDP',
-             'IndoconsNotificationDP',
-             'InsuranceUralsibNS',
-             'InsuranceAbsolutNS',
-             'InsuranceAbsolutNSPR',
-             'InsuranceRGSNS',
-             'InsurancePariNSIM',
-             'Agreement',
-             'AgreementEDS',
-             'ActPTS',
-             'IndoconsNotification',
-             'Anketa',
-             'AnketaEDS',
-             'ActCreditDoctor',
-             'ConsultEffectBudget',
-             'Statement',
-             'StatementEDS',
-             'PaymentSchedule',
-             'Indocons',
-             'IndoconsEDS',
-             'Memo',
-             'Passport',
-             'PassportMain',
-             'PassportRegistration',
-             'Photo',
-             'SelfiesPassport',
-             'Signature',
-             'Identification',
-             'Passport',
-             'Staement',
-             'Response',
-             'Claim',
-             'MEMO',
-             'PhotoBusiness',
-             'DocumentIP',
-             'Statement',
-             'Openbank',
-             'Other',
-             'Reference',
-             'Registry',
-             'Status',
-             'StatementScan',
-             'StatementTemplate',
-             'EarlyPaymentStatEDS',
-             'EarlyPaymentStat',
-             'LimitDecreaseNotification',
-             'AgreementIncreaseLimit',
-             'AgreementIncreaseLimitEDS',
-             'ServiceSertificateLawyer',
-             'ServiceSertificateTeledoctor24',
-             'ServiceSertificateTax',
-             'ServiceSertificateTeledoctor',
-             'ServiceSertificateMaster',
-             'ServiceSertificateAntivirus',
-             'RefinanceContract']
+            'IndoconsNotificationCDP',
+            'IndoconsNotificationDP',
+            'InsuranceUralsibNS',
+            'InsuranceAbsolutNS',
+            'InsuranceAbsolutNSPR',
+            'InsuranceRGSNS',
+            'InsurancePariNSIM',
+            'Agreement',
+            'AgreementEDS',
+            'ActPTS',
+            'IndoconsNotification',
+            'Anketa',
+            'AnketaEDS',
+            'ActCreditDoctor',
+            'ConsultEffectBudget',
+            'Statement',
+            'StatementEDS',
+            'PaymentSchedule',
+            'Indocons',
+            'IndoconsEDS',
+            'Memo',
+            'Passport',
+            'PassportMain',
+            'PassportRegistration',
+            'Photo',
+            'SelfiesPassport',
+            'Signature',
+            'Identification',
+            'Staement',
+            'Response',
+            'Claim',
+            'MEMO',
+            'Photo Business',
+            'DocumentIP (Document/Documents SP)',
+            'Statement Openbank',
+            'Other',
+            'Reference',
+            'Registry',
+            'Status',
+            'Statement Scan',
+            'Statement Template',
+            'EarlyPaymentStatEDS (Signed EarlyPayment Stat)',
+            'Unsigned EarlyPayment Stat',
+            'Refinance contract']

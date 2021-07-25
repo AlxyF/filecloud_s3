@@ -1,52 +1,58 @@
+from dotenv import load_dotenv
+from pathlib import Path
+import json, jsonref, jsonschema, yaml
+import os
+load_dotenv()
+config_path = os.getenv('CONFIG_FILES')
+config_file_name = 'filecloud_s3_config.yaml'
+config_file_path = Path(config_path).joinpath(config_file_name)
+default_config_file_path = Path(__file__).with_name('default_config.yaml')
+
+
+def fetch_yaml(config_file_path):
+    '''Fetching yaml o file and converting it into json.'''
+    with open(config_file_path, encoding='utf-8') as f:
+        json_ = jsonref.loads(json.dumps(yaml.safe_load(f)))
+        return json_
+
+if os.path.isfile(config_file_path) == False:
+    with default_config_file_path.open() as infile, config_file_path.open('w') as outfile:
+        outfile.write(infile.read())
+
+json_config = fetch_yaml(config_file_path)
+
+
 class configuration_class:
     def __init__(self):
+        global config_file_path
         self.host = '0.0.0.0'
         self.port = 5000
-    
-        #self.volume_path = '/TEST'
-        self.allowed_mime_types = ['application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                                   'application/pdf',
-                                   'image/jpeg'
-
-                                    ]
-        self.allowed_file_extensions = ['pdf', 'doc', 'docx', 'png', 'jpeg', 'jpg']
-        self.allowed_file_max_size_bytes = 5 * 1024 * 1024 # 5 Mb
-        self.upload_IDs = ['UCDB_ID','OCDB_ID','SourceID','ContractNumber']
-
         self.log_csv_header = ['timestamp', 'method', 'request_dict', 'last_status', 
-        'return_status', 'return_message', 'file_id', 'file_encoding', 
-        'file_size', 'file_extension', 'file_type']
+        'return_status', 'return_message', 'file_id']
         self.log_csv_file_name = 'logger_file_cloud_s3_hot.csv'
         
-        self.db_host = 'db'#'172.28.16.1' '172.28.19.183'
-        self.db_database = 'filecloud_s3'
-        self.db_user = 'filecloud'
-        self.db_password = 'filecloud'
+        self.json_config = fetch_yaml(config_file_path)
+
+        self.allowed_mime_types = self.json_config['allowed_mime_types']
+        self.allowed_file_extensions = self.json_config['allowed_file_extensions']
+        self.allowed_file_max_size_bytes = int(self.json_config['allowed_file_max_size_bytes'])
+        self.upload_IDs = self.json_config['upload_IDs']
+
+        self.db_table_main_name = self.json_config['db_table_main_name']
+        self.db_host = self.json_config['db_host']
+        self.db_database = self.json_config['db_database']
+        self.db_user =  self.json_config['db_user']
+        self.db_password = self.json_config['db_password']
         
+        self.db_table_main_columns = self.json_config['db_table_main_columns']
 
-        self.db_table_main_name = 'file_info'
-        self.db_table_main_columns = { '"FileID"': 'BIGSERIAL PRIMARY KEY',
-                                    '"InHotStorage"': 'BOOLEAN',
-                                    '"InColdStorage"': 'BOOLEAN',
-                                    '"UploadedDate"': 'TIMESTAMP NOT NULL',
-                                    '"LastAcquiredDate"': 'TIMESTAMP NOT NULL',
-                                    '"UCDB_ID"': 'BIGINT',
-                                    '"OCDB_ID"': 'BIGINT',
-                                    '"SourceID"': 'BIGINT',
-                                    '"ContractNumber"': 'BIGINT',
-                                    '"DocumentType"': 'VARCHAR (50) NOT NULL',
-                                    '"EDocumentType"': 'VARCHAR (50)',
-                                    '"SourceSystem"': 'VARCHAR (10)',
-                                    '"FileName"': 'VARCHAR (50)',
-                                    '"MimeType"': 'VARCHAR (50)',
-                                    '"FileExtension"': 'VARCHAR (10) NOT NULL',
-                                    '"SizeBytes"': 'BIGINT NOT NULL',
-                                    '"ACL"': 'JSON NOT NULL',
-                                    '"EncodingOnUpload"': 'VARCHAR (10) NOT NULL',
-                                    '"EncodingCurrent"': 'VARCHAR (10) NOT NULL',
-                                    '"FileTypeInfo"': 'VARCHAR (50) NOT NULL',
-                                    '"FileTypeAuxInfo"': 'VARCHAR (255)',
-                                    '"Description"': 'VARCHAR (255)', 
-                                    }
+        self.s3_region_name = self.json_config['s3_region']
+        self.s3_endpoint = self.json_config['s3_endpoint']
+        self.s3_profile = self.json_config['s3_profile']
+        self.s3_use_ssl = self.json_config['s3_use_ssl']
+        self.s3_verify_ssl = self.json_config['s3_verify_ssl']
 
-        #self.db_table_log_file_name = 'filecloud_s3_log'
+        self.permitted_systems = self.json_config['permitted_systems']
+
+    def reload_config(self):
+        self.json_config = fetch_yaml(config_file_path)

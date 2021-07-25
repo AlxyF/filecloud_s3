@@ -6,10 +6,14 @@ services:
             dockerfile: Dockerfile.dev
             args:
                 - VOLUME_FILES=${VOLUME_FILES}
+                - CONFIG_FILES=${CONFIG_FILES}
+                - LOG_FILES=${LOG_FILES}
                 - AWS_SHARED_CREDENTIALS_FILE=/home/app/filecloud_hot/${AWS_SHARED_CREDENTIALS_FILE}
         container_name: filecloud_hot-dev
         volumes:
             - filecloud_data:${VOLUME_FILES}:rw
+            - filecloud_config:${CONFIG_FILES}:rw
+            - /etc/localtime:/etc/localtime:ro
         command: >
                 gunicorn --bind 0.0.0.0:5000 manage:app
         expose:
@@ -24,10 +28,14 @@ services:
             dockerfile: Dockerfile.dev
             args:
                 - VOLUME_FILES=${VOLUME_FILES}
+                - CONFIG_FILES=${CONFIG_FILES}
+                - LOG_FILES=${LOG_FILES}
                 - AWS_SHARED_CREDENTIALS_FILE=/home/app/filecloud_cold/${AWS_SHARED_CREDENTIALS_FILE}
         container_name: filecloud_cold-dev
         volumes:
             - filecloud_data:${VOLUME_FILES}:rw
+            - filecloud_config:${CONFIG_FILES}:rw
+            - /etc/localtime:/etc/localtime:ro
         command: >
                 python3 manage.py
         expose:
@@ -43,11 +51,14 @@ services:
         container_name: filecloud-db-dev
         volumes:
             - postgres_data:/var/lib/postgresql/data/
+            - /etc/localtime:/etc/localtime:ro
         env_file: 
             - ./.env.dev.db
     nginx:
         build: ./services/nginx
         container_name: filecloud_hot-nginx-dev
+        volumes:
+            - /etc/localtime:/etc/localtime:ro
         ports:
             - 1337:80
         depends_on:
@@ -55,3 +66,5 @@ services:
 volumes:
     filecloud_data: 
     postgres_data:
+    filecloud_config:
+        

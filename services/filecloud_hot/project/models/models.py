@@ -39,6 +39,8 @@ class UploadModel(BaseModel):
         self.ContractNumber = 'NULL'
         self.EDocumentType = 'NULL'
         self.Description = 'NULL'
+
+        self.EncryptionOnCloud = 'NULL'
     
     def sql_injection_save(self):
         for attribute, value in self.__dict__.items():

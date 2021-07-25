@@ -1,4 +1,13 @@
 
 curl -X 'POST' http://172.28.16.1:5000/upload   -H 'accept: application/json'   -H 'Content-Type: multipart/form-data'   -F 'MessageID= 111'   -F 'MessageDate= 222' -F 'ContractNumber=777' -F 'SourceID=666' -F 'UCDB_ID=123456789' -F 'OCDB_ID=89' -F 'SourceSystem=WEB'   -F 'DocumentType=PassportMain'    -F 'File=@/mnt/c/Users/ALEX/Pictures/test/test_pic.jpg' -F 'Description=ALLLOU'
 curl -X 'POST' http://172.28.16.1:5000/download   -H 'accept: application/octet-stream'   -H 'Content-Type: application/json' --data '{"MessageID":"1212", "MessageDate":"222222221122", "Encoding":"binary", "FileID":"14"}'
- 
+
+
+curl -X 'POST' http://127.0.0.1:1337/fileCloud/login -H "Content-Type: application/json" -H "Authorization: Bearer ${"eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTYyNzE0NzUwMSwianRpIjoiYTA4ZDJhYTktYWRhNi00YjZiLWEyNTctODg2Y2RlOTIwMGZmIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IkVTQiIsIm5iZiI6MTYyNzE0NzUwMSwiZXhwIjoxNjI3MTQ4NDAxfQ._pN7MLI1d_whza6doPs1nPpOaEs8f7gqWSa6QxyX6VY"}" -d '{"username":"ESB", "password":"test"}'
+
+-H "Content-Type: application/json" -H "Authorization: Bearer ${"eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTYyNzE0NzUwMSwianRpIjoiYTA4ZDJhYTktYWRhNi00YjZiLWEyNTctODg2Y2RlOTIwMGZmIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IkVTQiIsIm5iZiI6MTYyNzE0NzUwMSwiZXhwIjoxNjI3MTQ4NDAxfQ._pN7MLI1d_whza6doPs1nPpOaEs8f7gqWSa6QxyX6VY"}"
+
+
+TOKEN = $eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTYyNzE0NzUwMSwianRpIjoiYTA4ZDJhYTktYWRhNi00YjZiLWEyNTctODg2Y2RlOTIwMGZmIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IkVTQiIsIm5iZiI6MTYyNzE0NzUwMSwiZXhwIjoxNjI3MTQ4NDAxfQ._pN7MLI1d_whza6doPs1nPpOaEs8f7gqWSa6QxyX6VY
+
+curl -X 'POST' http://127.0.0.1:1337/fileCloud/upload   -H 'accept: application/json'   -H 'Content-Type: multipart/form-data' -H "Content-Type: application/json" -H "Authorization: Bearer ${TOKEN}" -F 'MessageID= 111'   -F 'MessageDate= 222' -F 'ContractNumber=777' -F 'EDocumentType=Opty Scan' -F 'SourceID=666' -F 'UCDB_ID=123456789' -F 'OCDB_ID=89' -F 'SourceSystem=WEB'   -F 'DocumentType=PassportMain'    -F 'File=@/mnt/c/Users/ALEX/Pictures/test/test_pic.jpg' -F 'Description=ALLLOU'

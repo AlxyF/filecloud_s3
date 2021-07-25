@@ -5,18 +5,33 @@ import os, sys, time, csv, json, datetime, threading
 from project.config import configuration_class
 from project import database
 from project import s3_connector
+from project import bucket_logic
 load_dotenv()
 
 
 '''System exit'''
 def system_exit(status, error):
-    write_log_entry(status, error) 
+    write_log_entry(status, error, 'ERROR') 
     sys.exit(error) # gunicorn will stop only with code 4
 
 
 '''Logger'''
-def write_log_entry(log_status,log_message):
-    timestamp = time.time()
+logs_path = os.getenv('LOG_FILES')
+def write_log_entry(log_status, log_message, log_level):
+    timestamp = str(datetime.datetime.now())
+    today = datetime.date.today()
+
+    log_message = str(log_message)[0:str(log_message).find(r'\n')] + '"}'
+
+    log_entry = 'filecloud_hot ' + f'{timestamp}, {log_level}, {log_status}: {log_message}'
+
+    if not os.path.exists(logs_path):
+        os.makedirs(logs_path)
+    with open(os.path.join(logs_path, f"{today}"), 'w+', encoding='UTF8') as f:
+        writer = csv.writer(f)
+        writer.writerow([log_entry]) 
+
+    print(log_entry)
     return 0
 
 
@@ -33,25 +48,29 @@ except Exception as e:
 
 '''Configuration'''
 def configuration():
-    global _status, app_config, allowed_file_extensions, allowed_mime_types, allowed_file_max_size_bytes, upload_IDs
+    global _status, app_config, allowed_file_extensions, \
+    allowed_mime_types, allowed_file_max_size_bytes, upload_IDs, \
+    s3_region, s3_endpoint, s3_profile, s3_use_ssl, s3_verify_ssl, s3_transfer_period_seconds
     #if __name__ == '__main__':
     _status = 'configuration'
     # configuration
-    try:
-        app_config = configuration_class()
+    #try:
+    app_config = configuration_class()
+    # restrictions
+    allowed_file_extensions = app_config.allowed_file_extensions
+    allowed_mime_types = app_config.allowed_mime_types
+    allowed_file_max_size_bytes = app_config.allowed_file_max_size_bytes
+    upload_IDs = app_config.upload_IDs
+    #s3
+    s3_region = app_config.s3_region_name
+    s3_endpoint = app_config.s3_endpoint
+    s3_profile = app_config.s3_profile
+    s3_use_ssl = app_config.s3_use_ssl
+    s3_verify_ssl = app_config.s3_verify_ssl
 
-        # volume path
-        #volume_path = app_config.volume_path
-
-        # restrictions
-        allowed_file_extensions = app_config.allowed_file_extensions
-        allowed_mime_types = app_config.allowed_mime_types
-        allowed_file_max_size_bytes = app_config.allowed_file_max_size_bytes
-
-        # upload id
-        upload_IDs = app_config.upload_IDs
-    except Exception as e:
-        system_exit(_status, e)
+    s3_transfer_period_seconds = app_config.s3_transfer_period_seconds
+    #except Exception as e:
+    #    system_exit(_status, e)
 configuration()
 
 
@@ -114,46 +133,41 @@ def database_connector_and_checks():
         system_exit(_status, create_table)
 database_connector_and_checks()
 
-check_period = 1
-cloud_transfer_timer_s = 30
-
-#def filecloud_cold_start():
-#    while True:
-#        pass
-
-s3 = s3_connector.s3_client
 
 class FileCloudColdThread(threading.Thread):
-    def __init__(self, event):
+    def __init__(self, s3, bucket_logic_, period, event):
         threading.Thread.__init__(self)
+        self.s3 = s3
         self.stopped = event
+        self.bucket_logic_ = bucket_logic_
+        self.period = period
 
     def run(self):
-        while not self.stopped.wait(cloud_transfer_timer_s):
+        while not self.stopped.wait(self.period):
 
-            is_in_cloud_query = '''
+            is_in_cloud_query = f'''
             SELECT "FileID"
-            FROM file_info
+            FROM {app_config.db_table_main_name}
             WHERE "InColdStorage" = False
             '''
-            print("my thread")
             files_to_cloud = psql_connector.query_fetch_all(is_in_cloud_query)
-            print(files_to_cloud)
 
             for result in files_to_cloud:
                 file_id = result[0]
                 with open(os.path.join(volume_path, str(file_id)), "rb") as f:
                     file = f.read()
-                    f.close()
+                    f.close()  
                 #except Exception as e:
                 #    print(e)
+                bucket = self.bucket_logic_.get_bucket()
+                self.s3.upload_file(bucket=bucket, name=str(file_id), file=file)
+                
+def filecloud_cold_start():
+    s3 = s3_connector.s3_connector(region=s3_region, endpoint=s3_endpoint, profile=s3_profile,
+    use_ssl=s3_use_ssl, verify_ssl=s3_verify_ssl)
 
-                s3.put_object(Bucket='test_b', Key=str(file_id), Body=file)
-            # call a function
+    bucket_logic_ = bucket_logic.bucket_logic(s3_connector=s3)
 
-
-stopFlag = threading.Event()
-thread = FileCloudColdThread(stopFlag)
-thread.start()
-# this will stop the timer
-#stopFlag.set()
+    stopFlag = threading.Event()
+    thread = FileCloudColdThread(s3, bucket_logic_, s3_transfer_period_seconds, stopFlag)
+    thread.start()

@@ -1,8 +1,10 @@
 # importing side libraries
-from flask import Flask, Response, request
-#from flask_sqlalchemy import SQLAlchemy
+from flask import Flask, Response, request, jsonify
+from flask_jwt_extended import create_access_token
+from flask_jwt_extended import get_jwt_identity
+from flask_jwt_extended import jwt_required
+from flask_jwt_extended import JWTManager
 from flasgger import Swagger
-from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 # importing default python libraries
@@ -14,18 +16,34 @@ from project.models import models
 from project import file_aux
 from project import database
 from project import s3_connector
+from project import acl
 load_dotenv()
 
 '''System exit'''
 def system_exit(status, error):
-    write_log_entry(status, error) 
+    write_log_entry(status, error, 'ERROR') 
     sys.exit(4) # gunicorn will stop only with code 4
 
 
 
 '''Logger'''
-def write_log_entry(log_status,log_message):
-    timestamp = time.time()
+logs_path = os.getenv('LOG_FILES')
+def write_log_entry(log_code, log_message, log_level):
+    global _status
+    timestamp = str(datetime.datetime.now())
+    today = datetime.date.today()
+
+    #log_message = str(log_message)[0:str(log_message).find(r'\n')] + '"}'
+
+    log_entry = 'filecloud_hot '+ f'{log_code} ' + f'{timestamp}, {log_level}, {_status}: {log_message}'
+
+    if not os.path.exists(logs_path):
+        os.makedirs(logs_path)
+    with open(os.path.join(logs_path, f"{today}"), 'w+', encoding='UTF8') as f:
+        writer = csv.writer(f)
+        writer.writerow([log_entry]) 
+
+    print(log_entry)
     return 0
 
 
@@ -35,7 +53,9 @@ app = Flask(__name__)
 app.config['SWAGGER'] = { 'title': 'FileCloudService_s3', 'openapi': '3.0.3' }
 app.config['MAX_CONTENT_PATH'] = 255
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024 # 50 Mb
-
+# Setup the Flask-JWT-Extended extension
+app.config["JWT_SECRET_KEY"] = "super-secret"  # Change this!
+jwt = JWTManager(app)
 
 '''File volume'''
 volume_path = os.getenv('VOLUME_FILES')
@@ -50,25 +70,38 @@ except Exception as e:
 
 '''Configuration'''
 def configuration():
-    global _status, app_config, allowed_file_extensions, allowed_mime_types, allowed_file_max_size_bytes, upload_IDs
+    global _status, app_config, allowed_file_extensions, \
+    allowed_mime_types, allowed_file_max_size_bytes, upload_IDs, \
+    s3_region, s3_endpoint, s3_profile, s3_use_ssl, s3_verify_ssl, \
+    permitted_systems, acl_
     #if __name__ == '__main__':
     _status = 'configuration'
     # configuration
+    #try:
+    app_config = configuration_class()
+    # restrictions
+    allowed_file_extensions = app_config.allowed_file_extensions
+    allowed_mime_types = app_config.allowed_mime_types
+    allowed_file_max_size_bytes = app_config.allowed_file_max_size_bytes
+    upload_IDs = app_config.upload_IDs
+    #s3
+    s3_region = app_config.s3_region_name
+    s3_endpoint = app_config.s3_endpoint
+    s3_profile = app_config.s3_profile
+    s3_use_ssl = app_config.s3_use_ssl
+    s3_verify_ssl = app_config.s3_verify_ssl
+
+    permitted_systems = app_config.permitted_systems
+
+    acl_ = acl.fileACL()
+    #except Exception as e:
+    #    system_exit(_status, e)
+configuration()
+def configuration_reload():
     try:
-        app_config = configuration_class()
-
-        # volume path
-        #volume_path = app_config.volume_path
-
-        # restrictions
-        allowed_file_extensions = app_config.allowed_file_extensions
-        allowed_mime_types = app_config.allowed_mime_types
-        allowed_file_max_size_bytes = app_config.allowed_file_max_size_bytes
-
-        # upload id
-        upload_IDs = app_config.upload_IDs
-    except Exception as e:
-        system_exit(_status, e)
+        app_config.reload_config()
+    except:
+        pass
 configuration()
 
 
@@ -143,9 +176,10 @@ swagger = Swagger(app, template=openapi_specification)
 
 '''Responses'''
 def response_json(json_string, status, mimetype='application/json'):
-    log_status, log_message = status, json_string
-    write_log_entry(log_status, log_message)
-    return Response(f"{json_string}", status=status, mimetype=mimetype)
+    log_code, log_message = status, json_string
+    log_level = 'INFO' if log_code == '200' else 'ERROR' 
+    write_log_entry(log_code, log_message, log_level)
+    return Response(f"{json_string}", status=log_code, mimetype=mimetype)
 
 
 '''API routes'''
@@ -154,17 +188,39 @@ def index():
     print('HOME PAGE', flush=True)
     return 'HomePage'
 
+# Create a route to authenticate your users and return JWTs. The
+# create_access_token() function is used to actually generate the JWT.
+@app.route("/fileCloud/login", methods=["POST"])
+def login():
+    global _status, permitted_systems
 
-@app.route('/upload', methods=['POST'])
+    _status = 'login'
+
+    username = request.json.get("username", None)
+    password = request.json.get("password", None)
+    if (username not in permitted_systems) or password != "test":
+        return jsonify({"msg": "Bad username or password"}), 401
+
+    access_token = create_access_token(identity=username)
+    return jsonify(access_token=access_token)
+
+
+@app.route('/fileCloud/upload', methods=['POST'])
+@jwt_required()
 def upload_file():
-    global _status, psql_connector
-    
+    global _status, psql_connector, acl_
     # server time of upload
     timestamp_upload = datetime.datetime.now()
+
+    configuration_reload()
 
     # measure upload time
     start = time.time()
 
+    # jwt control
+    current_user = get_jwt_identity()
+    print(current_user)
+    print(request.form.to_dict())
     # check if request schema is valid
     _status = 'upload_scheme_validation'
     try:
@@ -207,7 +263,9 @@ def upload_file():
     # check for file extensions in file name
     _status = 'type_check'
     try:
-        uploaded_file_extension = uploaded_file_name.rsplit('.', 1)[1].lower()
+        if '.' in uploaded_file_name:
+            uploaded_file_extension = uploaded_file_name.rsplit('.', 1)[1].lower()
+        else: uploaded_file_extension = None
         if uploaded_file_extension not in allowed_file_extensions:
             err = {'Error':f'.{uploaded_file_extension} file extension is not allowed'}
             return response_json(err, status=415)
@@ -265,6 +323,10 @@ def upload_file():
         
         upload.UploadedDate = timestamp_upload
         upload.LastAcquiredDate = timestamp_upload
+        upload.SourceSystem = current_user
+        upload.ACL = acl_.get_acl(source_system=current_user)
+
+        upload.EncryptionOnCloud = None
     
         for i in upload_IDs_map:
             if upload_IDs_map[i]:
@@ -287,7 +349,7 @@ def upload_file():
         '{upload.LastAcquiredDate}', {upload.UCDB_ID}, {upload.OCDB_ID}, {upload.SourceID}, 
         {upload.ContractNumber}, '{upload.DocumentType}', '{upload.EDocumentType}', '{upload.SourceSystem}', 
         '{upload.FileName}', '{upload.FileMimeType}','{upload.FileExtension}', {upload.SizeBytes},
-        '{upload.ACL}', '{upload.FileEncodingOnUpload}', '{upload.FileEncodingCurrent}',
+        '{upload.ACL}', '{upload.FileEncodingOnUpload}', '{upload.FileEncodingCurrent}', '{upload.EncryptionOnCloud}',
         '{upload.FileTypeInfo}', '{upload.FileTypeAuxInfo}', '{upload.Description}')
         RETURNING "FileID";
         '''

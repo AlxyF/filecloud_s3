@@ -1,0 +1,63 @@
+permitted_systems:
+  - 'ESB'
+  - 'BPM'
+  
+db_host: 'db'
+db_database: 'filecloud_s3'
+db_user: 'filecloud'
+db_password: 'filecloud'
+
+db_table_main_name: 'file_info'
+db_table_main_columns: { 
+          '"FileID"': 'BIGSERIAL PRIMARY KEY',
+          '"InHotStorage"': 'BOOLEAN',
+          '"InColdStorage"': 'BOOLEAN',
+          '"UploadedDate"': 'TIMESTAMP NOT NULL',
+          '"LastAcquiredDate"': 'TIMESTAMP NOT NULL',
+          '"UCDB_ID"': 'BIGINT',
+          '"OCDB_ID"': 'BIGINT',
+          '"SourceID"': 'VARCHAR (100)',
+          '"ContractNumber"': 'BIGINT',
+          '"DocumentType"': 'VARCHAR (50)',
+          '"EDocumentType"': 'VARCHAR (50)',
+          '"SourceSystem"': 'VARCHAR (10)',
+          '"FileName"': 'VARCHAR (255)',
+          '"MimeType"': 'VARCHAR (50)',
+          '"FileExtension"': 'VARCHAR (10) NOT NULL',
+          '"SizeBytes"': 'BIGINT NOT NULL',
+          '"ACL"': 'JSON NOT NULL',
+          '"EncodingOnUpload"': 'VARCHAR (10) NOT NULL',
+          '"EncodingCurrent"': 'VARCHAR (10) NOT NULL',
+          '"EncryptionOnCloud"': 'VARCHAR (10) NOT NULL',
+          '"FileTypeInfo"': 'VARCHAR (50) NOT NULL',
+          '"FileTypeAuxInfo"': 'VARCHAR (255)',
+          '"Description"': 'VARCHAR (255)', 
+}
+
+allowed_mime_types:
+  - 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  - 'application/pdf'
+  - 'image/jpeg'
+allowed_file_extensions:
+  - 'pdf'
+  - 'doc'
+  - 'docx'
+  - 'png'
+  - 'jpeg'
+  - 'jpg'
+
+#5MB
+allowed_file_max_size_bytes: 5242880‬ 
+
+upload_IDs: 
+  - 'UCDB_ID'
+  - 'OCDB_ID'
+  - 'SourceID'
+  - 'ContractNumber'
+
+s3_region: "nord1"
+s3_endpoint: "https://s3.dtln.ru/"
+s3_profile: "dataline"
+s3_use_ssl: False
+s3_verify_ssl: False
+s3_transfer_period_seconds: 30
