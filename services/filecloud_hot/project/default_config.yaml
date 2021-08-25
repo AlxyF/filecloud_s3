@@ -1,6 +1,12 @@
 permitted_systems:
   - 'ESB'
   - 'BPM'
+  - 'PAD'
+  - 'WEB'
+  - 'FIS'
+  - 'CRM'
+  - 'ABS'
+  - 'AGENTS'
   
 db_host: 'db'
 db_database: 'filecloud_s3'
@@ -31,13 +37,16 @@ db_table_main_columns: {
           '"EncryptionOnCloud"': 'VARCHAR (10) NOT NULL',
           '"FileTypeInfo"': 'VARCHAR (50) NOT NULL',
           '"FileTypeAuxInfo"': 'VARCHAR (255)',
-          '"Description"': 'VARCHAR (255)', 
+          '"Description"': 'VARCHAR (255)',
+          '"EncryptionKey"': 'VARCHAR (255)',
 }
 
 allowed_mime_types:
   - 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
   - 'application/pdf'
   - 'image/jpeg'
+  - 'image/png'
+
 allowed_file_extensions:
   - 'pdf'
   - 'doc'
@@ -46,8 +55,7 @@ allowed_file_extensions:
   - 'jpeg'
   - 'jpg'
 
-#5MB
-allowed_file_max_size_bytes: 5242880‬ 
+allowed_file_max_size_bytes: 5242880‬ #5MB
 
 upload_IDs: 
   - 'UCDB_ID'
@@ -61,3 +69,6 @@ s3_profile: "dataline"
 s3_use_ssl: False
 s3_verify_ssl: False
 s3_transfer_period_seconds: 30
+
+check_cache_period_minutes: 10
+clear_cache_after_hours: 24

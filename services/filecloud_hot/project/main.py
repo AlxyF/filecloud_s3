@@ -17,6 +17,7 @@ from project import file_aux
 from project import database
 from project import s3_connector
 from project import acl
+from project import bucket_logic
 load_dotenv()
 
 '''System exit'''
@@ -138,7 +139,7 @@ def database_connector_and_checks():
             table_columns=psql_connector.table_main_columns)
     except:
         system_exit(_status, create_table)
-
+    '''
     try:
         # if table name exists but not all columns are present create new table _{i} version
         table_exists = psql_connector.is_table_exists(table_name=psql_connector.table_main_name,
@@ -162,6 +163,7 @@ def database_connector_and_checks():
             psql_connector.table_main_name = check_name
     except Exception as e:
         system_exit(_status, create_table)
+    '''
 database_connector_and_checks()
 
 
@@ -219,8 +221,7 @@ def upload_file():
 
     # jwt control
     current_user = get_jwt_identity()
-    print(current_user)
-    print(request.form.to_dict())
+
     # check if request schema is valid
     _status = 'upload_scheme_validation'
     try:
@@ -380,25 +381,33 @@ def upload_file():
     return Response(f"{valid_response}", status=200, mimetype='application/json')
    
     
-@app.route('/download', methods=['POST'])
+@app.route('/fileCloud/download', methods=['POST'])
+@jwt_required()
 def download_file():
-    global _status, psql_connector
+
+    global _status, psql_connector, acl_, s3_use_ssl, s3_connector,\
+        s3_endpoint, s3_profile, s3_region, s3_verify_ssl, bucket_logic_
     # server time of download
     timestamp_download = datetime.datetime.now()
 
     # measure download time
     start = time.time()
 
+    configuration_reload()
+
+    # jwt
+    current_user = get_jwt_identity()
+
     # check if request schema is valid
     _status = 'download_scheme_validation'
-    try:
-        request_dict = json.loads(request.data)
-        validate = schemas.validate_scheme(request_dict, download_validator)
-        if validate != True:
-            err = {'Error':''.join([str(i) for i in validate])}
-            return response_json(err, status=400)
-    except Exception as e:
-        return response_json(e, status=500)
+    #try:
+    request_dict = request.form.to_dict()
+    validate = schemas.validate_scheme(request_dict, download_validator)
+    if validate != True:
+        err = {'Error':''.join([str(i) for i in validate])}
+        return response_json(err, status=400)
+   # except Exception as e:
+        #return response_json(e, status=500)
 
     # file download model generation
     _status = 'download_model'
@@ -421,12 +430,49 @@ def download_file():
         FROM {psql_connector.table_main_name}
         WHERE "FileID" = {download.FileID}
         '''
-        if psql_connector.query_fetch_one(query_check_cold) == None:
+        file_availability_check = psql_connector.query_fetch_one(query_check_cold)
+        if file_availability_check == None:
             return response_json('File with this ID was never uploaded', status=404)
-        if psql_connector.query_fetch_one(query_check_cold)[0] == False:
+        if file_availability_check[0] == False:
             return response_json('File with this ID was deleted', status=410)
-        if psql_connector.query_fetch_one(query_check_cold)[0] == True:
-            s3_connector.download_file(download.FileID)
+        if file_availability_check[0] == True:
+            query_get_date = f'''
+            SELECT "UploadedDate"
+            FROM {psql_connector.table_main_name}
+            WHERE "FileID" = {download.FileID}
+            '''
+            get_date = psql_connector.query_fetch_one(query_get_date)[0]
+            print(type(get_date))
+            get_bucket = datetime.datetime.fromisoformat(str(get_date)).date().strftime('%Y-%m-%d')
+            
+            s3 = s3_connector.s3_connector(region=s3_region, endpoint=s3_endpoint, profile=s3_profile,
+            use_ssl=s3_use_ssl, verify_ssl=s3_verify_ssl)
+            bucket_logic_ = bucket_logic.bucket_logic(s3_connector=s3)
+
+            download.File = s3.download_file(bucket=get_bucket , name=download.FileID)
+            valid_response = download.File
+
+            query_last_acquired = f'''
+            UPDATE {psql_connector.table_main_name}
+            SET "LastAcquiredDate" = {str(datetime.datetime.now())}
+            WHERE "FileID" = {download.FileID};
+            '''
+            psql_connector.query_execute(query_last_acquired)
+
+            # save file
+            print(download.File)
+            try: 
+                with open(os.path.join(volume_path, str(download.FileID)), "wb") as f:
+                    f.write(download.File)
+                    f.close()
+            except Exception as e:
+                query_fail_save = f'''
+                UPDATE {psql_connector.table_main_name}
+                SET "InHotStorage" = False
+                WHERE "FileID" = {download.FileID};
+                '''
+                psql_connector.query_execute(query_fail_save)
+                return response_json(e, status=500)
 
     end = time.time()
     print('Time elapsed', end-start)

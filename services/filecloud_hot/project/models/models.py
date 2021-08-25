@@ -53,3 +53,4 @@ class DownloadModel(BaseModel):
         super().__init__(required['MessageID'], required['MessageDate'])
         self.FileID = required['FileID']
         self.Encoding = required['Encoding']
+        self.File = None

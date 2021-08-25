@@ -1,31 +1,53 @@
 import os
 from dotenv import load_dotenv
-load_dotenv()
-os.getenv('AWS_SHARED_CREDENTIALS_FILE')
-volume_path = os.getenv('VOLUME_FILES')
-print(os.getenv('AWS_SHARED_CREDENTIALS_FILE'))
 import boto3
-#import logging
 from botocore.exceptions import ClientError
 
 
-region_name = 'nord1'
-api_endpoint = r"https://s3.dtln.ru/"
-
-session = boto3.session.Session(profile_name="dataline")
-s3_client = session.client(
-    service_name='s3',
-    endpoint_url=api_endpoint,
-    use_ssl=True,
-    verify=False
-)
+load_dotenv()
+os.getenv('AWS_SHARED_CREDENTIALS_FILE')
+volume_path = os.getenv('VOLUME_FILES')
 
 
-#s = s3_client.list_buckets()
-print(os.path.join(volume_path, "my_file.jpg"))
 
-def download_file():
-    s3_client.download_file('test_b', 'my_file.jpg', os.path.join(volume_path, "my_file.jpg"))
+class s3_connector:
+    def __init__(self, region, endpoint, profile, use_ssl, verify_ssl):
+        self.region = region
+        self.endpoint = endpoint
+        self.profile = profile
+        self.use_ssl = use_ssl
+        self.verify_ssl = verify_ssl
 
-a = s3_client.download_file('test_b', 'my_file.jpg', os.path.join(volume_path, "my_file.jpg"))
-print(a)
+    def s3_session(self):
+        session = boto3.session.Session(profile_name=self.profile)
+        s3_client = session.client(
+            service_name='s3',
+            endpoint_url=self.endpoint,
+            use_ssl=self.use_ssl,
+            verify=self.verify_ssl
+        )
+        return s3_client
+
+    def upload_file(self, bucket, name, file):
+        self.s3_session().put_object(Bucket=bucket, Key=name, Body=file)
+
+    def download_file(self, bucket, name):
+        return self.s3_session().get_object(Bucket=bucket, Key=name)['Body'].read()
+
+    def create_bucket(self, bucket_name):
+        self.s3_session().create_bucket(Bucket=bucket_name)
+    
+    def check_bucket(self, bucket_name):  
+        try:
+            self.s3_session().head_bucket(Bucket=bucket_name)
+            return True
+        except ClientError as e:
+            # If a client error is thrown, then check that it was a 404 error.
+            # If it was a 404 error, then the bucket does not exist.
+            error_code = int(e.response['Error']['Code'])
+            if error_code == 403:
+                print("Private Bucket. Forbidden Access!")
+                return True
+            elif error_code == 404:
+                print("Bucket Does Not Exist!")
+                return False
